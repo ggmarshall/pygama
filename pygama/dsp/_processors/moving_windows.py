@@ -1,5 +1,6 @@
 import numpy as np
 from numba import guvectorize
+from pygama.dsp.errors import DSPFatal
 
 
 @guvectorize(["void(float32[:], float32, float32[:])",
@@ -42,7 +43,7 @@ def moving_window_left(w_in, length, w_out):
         return
 
     if (not length >= 0 or not length< len(w_in)):
-        raise ValueError('length is out of range, must be between 0 and the length of the waveform')
+        raise DSPFatal('length is out of range, must be between 0 and the length of the waveform')
 
     w_out[0]= w_in[0]/length
     for i in range(1, int(length)):
@@ -90,7 +91,7 @@ def moving_window_right(w_in, length, w_out):
         return
 
     if (not length >= 0 or not length< len(w_in)):
-        raise ValueError('length is out of range, must be between 0 and the length of the waveform')
+        raise DSPFatal('length is out of range, must be between 0 and the length of the waveform')
 
 
     w_out[-1]= w_in[-1] 
@@ -143,10 +144,10 @@ def moving_window_multi(w_in, length, num_mw, w_out):
         return
 
     if (not length >= 0 or not length< len(w_in)):
-        raise ValueError('length is out of range, must be between 0 and the length of the waveform')
+        raise DSPFatal('length is out of range, must be between 0 and the length of the waveform')
     
     if (not num_mw >= 0) :
-        raise ValueError('num_mw is out of range, must be >= 0')
+        raise DSPFatal('num_mw is out of range, must be >= 0')
 
 
     wf_buf = w_in.copy()
@@ -209,7 +210,7 @@ def avg_current(w_in, length, w_out):
         return
 
     if (not length >= 0 or not length< len(w_in)):
-        raise ValueError('length is out of range, must be between 0 and the length of the waveform')
+        raise DSPFatal('length is out of range, must be between 0 and the length of the waveform')
     
 
     w_out[:] = w_in[int(length):] - w_in[:-int(length)]

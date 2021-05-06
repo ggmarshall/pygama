@@ -1,5 +1,6 @@
 import numpy as np
 from numba import guvectorize
+from pygama.dsp.errors import DSPFatal
 
 @guvectorize(["void(float32[:], uint16, float32[:])",
               "void(float64[:], uint16, float64[:])"],
@@ -41,6 +42,6 @@ def bl_subtract(w_in, a_baseline, w_out):
         return
 
     if (not a_baseline >= 0):
-        raise ValueError('a_baseline is out of range')
+        raise DSPFatal('a_baseline is out of range')
 
     w_out[:] = w_in[:] - a_baseline

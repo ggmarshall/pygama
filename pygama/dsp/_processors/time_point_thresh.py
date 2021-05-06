@@ -1,6 +1,7 @@
 import numpy as np
 from numba import guvectorize
 import math
+from pygama.dsp.errors import DSPFatal
 
 @guvectorize(["void(float32[:], float32, float32, int32 ,float32[:])",
               "void(float64[:], float64, float32, int32 ,float32[:])"],
@@ -47,10 +48,10 @@ def time_point_thresh(w_in, a_threshold, t_start, walk_forward, t_out):
         return
     
     if (not np.floor(t_start)==t_start):
-        raise ValueError('Start time is not an integer')
+        raise DSPFatal('Start time is not an integer')
 
     if (not int(t_start) in range(len(w_in))):
-        raise ValueError('Time point not in length of waveform')
+        raise DSPFatal('Time point not in length of waveform')
 
     if(walk_forward == 1):
         for i in range(int(t_start), len(w_in)-1):

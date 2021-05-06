@@ -1,7 +1,7 @@
-  
 import numpy as np
 from numba import guvectorize
 import math
+from pygama.dsp.errors import DSPFatal
 
 
 @guvectorize(["void(float32[:], float32, float32, float32[:])",
@@ -47,13 +47,13 @@ def trap_filter(w_in, rise, flat, w_out):
         return
 
     if (not  0 <= rise):
-        raise ValueError('Rise must be >= 0')
+        raise DSPFatal('Rise must be >= 0')
     
     if (not  0 <= flat):
-        raise ValueError('Flat must be >= 0')
+        raise DSPFatal('Flat must be >= 0')
     
     if (not 2*rise+flat <= len(w_in)):
-        raise ValueError('Trap Filter longer than waveform')
+        raise DSPFatal('Trap Filter longer than waveform')
     
     rise_int = int(rise)
     flat_int = int(flat)
@@ -111,13 +111,13 @@ def trap_norm(w_in, rise, flat, w_out):
         return
 
     if (not  0 <= rise):
-        raise ValueError('Rise must be >= 0')
+        raise DSPFatal('Rise must be >= 0')
     
     if (not  0 <= flat):
-        raise ValueError('Flat must be >= 0')
+        raise DSPFatal('Flat must be >= 0')
     
     if (not 2*rise+flat <= len(w_in)):
-        raise ValueError('Trap Filter longer than waveform')
+        raise DSPFatal('Trap Filter longer than waveform')
     
     rise_int = int(rise)
     flat_int = int(flat)
@@ -178,16 +178,16 @@ def asym_trap_filter(w_in, rise, flat, fall, w_out):
         return
 
     if (not  0 <= rise):
-        raise ValueError('Rise must be >= 0')
+        raise DSPFatal('Rise must be >= 0')
     
     if (not  0 <= flat):
-        raise ValueError('Flat must be >= 0')
+        raise DSPFatal('Flat must be >= 0')
 
     if (not  0 <= fall):
-        raise ValueError('Fall must be >= 0')
+        raise DSPFatal('Fall must be >= 0')
     
     if (not rise+flat+fall <= len(w_in)):
-        raise ValueError('Trap Filter longer than waveform')
+        raise DSPFatal('Trap Filter longer than waveform')
 
     rise_int = int(rise)
     flat_int = int(flat)
@@ -251,16 +251,16 @@ def trap_pickoff(w_in, rise, flat, t_pickoff, a_out):
         return
 
     if (not np.floor(t_pickoff)==t_pickoff):
-        raise ValueError('Pickoff time is not an integer')
+        raise DSPFatal('Pickoff time is not an integer')
 
     if (not  0 <= rise):
-        raise ValueError('Rise must be >= 0')
+        raise DSPFatal('Rise must be >= 0')
     
     if (not  0 <= flat):
-        raise ValueError('Flat must be >= 0')
+        raise DSPFatal('Flat must be >= 0')
 
     if (not 2*rise+flat <= len(w_in)):
-        raise ValueError('Trap Filter longer than waveform')
+        raise DSPFatal('Trap Filter longer than waveform')
 
 
     I_1 = 0.

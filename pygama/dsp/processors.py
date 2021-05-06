@@ -43,3 +43,5 @@ from ._processors.trap_filters import trap_filter, trap_norm, asym_trap_filter, 
 from ._processors.min_max import min_max
 from ._processors.time_point_thresh import time_point_thresh
 from ._processors.old_linear_slope_fit import old_linear_slope_fit
+from ._processors.presum import presum
+from ._processors.windower import windower

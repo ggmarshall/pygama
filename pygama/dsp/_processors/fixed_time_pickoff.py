@@ -1,6 +1,8 @@
 import numpy as np
 from numba import guvectorize
 import math
+from pygama.dsp.errors import DSPFatal
+
 
 @guvectorize(["void(float32[:], float32, float32[:])",
               "void(float64[:], float32, float64[:])"],
@@ -42,6 +44,6 @@ def fixed_time_pickoff(w_in, t_in, a_out):
         return
   
     if (not np.floor(t_in)==t_in):
-        raise ValueError('Pickoff Time is not an integer')
+        raise DSPFatal('Pickoff Time is not an integer')
 
     a_out[0] = w_in[int(t_in)]
