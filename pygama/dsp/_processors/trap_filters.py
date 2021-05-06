@@ -247,6 +247,9 @@ def trap_pickoff(w_in, rise, flat, t_pickoff, a_out):
     if (np.isnan(w_in).any()):
         return
 
+    if (not  0 <= t_pickoff <= len(w_in)) :
+        return
+
     if (not np.floor(t_pickoff)==t_pickoff):
         raise ValueError('Pickoff time is not an integer')
 
@@ -256,9 +259,6 @@ def trap_pickoff(w_in, rise, flat, t_pickoff, a_out):
     if (not  0 <= flat):
         raise ValueError('Flat must be >= 0')
 
-    if (not  0 <= t_pickoff <= len(w_in)) :
-        raise ValueError('Pickoff Time must be >= 0 and <= len(wf)')
-    
     if (not 2*rise+flat <= len(w_in)):
         raise ValueError('Trap Filter longer than waveform')
 

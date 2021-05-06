@@ -37,11 +37,11 @@ def fixed_time_pickoff(w_in, t_in, a_out):
 
     if (np.isnan(w_in).any() or np.isnan(t_in)):
         return
-
+    
+    if (not int(t_in) in range(len(w_in))):
+        return
+  
     if (not np.floor(t_in)==t_in):
         raise ValueError('Pickoff Time is not an integer')
-
-    if (not int(t_in) in range(len(w_in))):
-        raise ValueError('Time point not in length of waveform')
 
     a_out[0] = w_in[int(t_in)]
