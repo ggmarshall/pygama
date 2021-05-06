@@ -378,15 +378,46 @@ output buffer.</p>
 
 <dl class="py method">
 <dt id="pygama.dsp.ProcessingChain.ProcessingChain.get_variable">
-<code class="sig-name descname"><span class="pre">get_variable</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">varname</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/dsp/ProcessingChain.html#ProcessingChain.get_variable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.dsp.ProcessingChain.ProcessingChain.get_variable" title="Permalink to this definition">¶</a></dt>
-<dd><p>Get the numpy array holding the internal memory buffer used for a
-named variable. The varname has the format</p>
+<code class="sig-name descname"><span class="pre">get_variable</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">expr</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">get_names_only</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/dsp/ProcessingChain.html#ProcessingChain.get_variable"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.dsp.ProcessingChain.ProcessingChain.get_variable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parse string expr into a numpy array or value, using the following
+syntax:</p>
 <blockquote>
-<div><p>&quot;varname(length, type)[range]&quot;</p>
+<div><ul>
+<li><p>numeric values are parsed into ints or floats</p></li>
+<li><p>units found in the dsp.units module are parsed into floats</p></li>
+<li><p>other strings are parsed into variable names. If get_name_only is
+False, fetch the internal buffer (creating it as needed). Else,
+return a string of the name</p></li>
+<li><p>if a string is followed by (...), try parsing into one of the
+following expressions:</p>
+<blockquote>
+<div><p>len(expr): return the length of the array found with expr
+round(expr): return the value found with expr to the nearest int
+varname(shape, type): allocate a new buffer with the specified</p>
+<blockquote>
+<div><p>shape and type, using varname. This is used if the automatic
+type and shape deduction for allocating variables fails</p>
 </div></blockquote>
-<p>The optional (length, type) field is used to initialize a new variable
-if necessary. The optional [range] field fetches only a subrange
-of the array to the function.</p>
+</div></blockquote>
+</li>
+<li><dl class="simple">
+<dt>Unary and binary operators +, -, <a href="#id1"><span class="problematic" id="id2">*</span></a>, /, // are available. If</dt><dd><p>a variable name is included in the expression, a processor
+will be added to the ProcChain and a new buffer allocated
+to store the output</p>
+</dd>
+</dl>
+</li>
+<li><dl class="simple">
+<dt>varname[slice]: return the variable with a slice applied. Slice</dt><dd><p>values can be floats, and will have round applied to them</p>
+</dd>
+</dl>
+</li>
+</ul>
+</div></blockquote>
+<dl class="simple">
+<dt>If get_names_only is set to True, do not fetch or allocate new arrays,</dt><dd><p>instead return a list of variable names found in the expression</p>
+</dd>
+</dl>
 </dd></dl>
 
 </dd></dl>

@@ -213,6 +213,7 @@
 <span class="sd">            3: Print friggin&#39; everything!    </span>
 <span class="sd">    - block_width: number of entries to process at once.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">proc_chain</span> <span class="o">=</span> <span class="n">ProcessingChain</span><span class="p">(</span><span class="n">block_width</span><span class="p">,</span> <span class="n">lh5_in</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">verbosity</span> <span class="o">=</span> <span class="n">verbosity</span><span class="p">)</span>
     
     <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dsp_config</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
         <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">dsp_config</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -228,12 +229,29 @@
 
     <span class="n">processors</span> <span class="o">=</span> <span class="n">dsp_config</span><span class="p">[</span><span class="s1">&#39;processors&#39;</span><span class="p">]</span>
     
-    <span class="c1"># for processors with multiple outputs, add separate entries to the processor list</span>
-    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">processors</span><span class="p">):</span>
+    <span class="c1"># prepare the processor list</span>
+    <span class="n">multi_out_procs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">processors</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="c1"># if we have multiple outputs, add each to the processesors list</span>
         <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">re</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,| &quot;</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span> <span class="k">if</span> <span class="n">k</span><span class="o">!=</span><span class="s1">&#39;&#39;</span><span class="p">]</span>
         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">:</span>
             <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
-                <span class="n">processors</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span>
+                <span class="n">multi_out_procs</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">key</span>
+
+        <span class="c1"># parse the arguments list for prereqs, if not included explicitly</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="s1">&#39;prereqs&#39;</span> <span class="ow">in</span> <span class="n">node</span><span class="p">:</span>
+            <span class="n">prereqs</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">node</span><span class="p">[</span><span class="s1">&#39;args&#39;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span> <span class="k">continue</span>
+                <span class="k">for</span> <span class="n">prereq</span> <span class="ow">in</span> <span class="n">proc_chain</span><span class="o">.</span><span class="n">get_variable</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+                    <span class="k">if</span> <span class="n">prereq</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">prereqs</span> <span class="ow">and</span> <span class="n">prereq</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keys</span> <span class="ow">and</span> <span class="n">prereq</span> <span class="o">!=</span> <span class="s1">&#39;db&#39;</span><span class="p">:</span>
+                        <span class="n">prereqs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prereq</span><span class="p">)</span>
+            <span class="n">node</span><span class="p">[</span><span class="s1">&#39;prereqs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">prereqs</span>
+
+        <span class="k">if</span> <span class="n">verbosity</span><span class="o">&gt;=</span><span class="mi">2</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Prereqs for&quot;</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="s2">&quot;are&quot;</span><span class="p">,</span> <span class="n">node</span><span class="p">[</span><span class="s1">&#39;prereqs&#39;</span><span class="p">])</span>
+
+    <span class="n">processors</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">multi_out_procs</span><span class="p">)</span>
     
     <span class="c1"># Recursive function to crawl through the parameters/processors and get</span>
     <span class="c1"># a sequence of unique parameters such that parameters always appear after</span>
@@ -244,7 +262,7 @@
         <span class="k">if</span> <span class="n">par</span> <span class="ow">in</span> <span class="n">resolved</span><span class="p">:</span>
             <span class="k">return</span>
         <span class="k">elif</span> <span class="n">par</span> <span class="ow">in</span> <span class="n">unresolved</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Circular references detected: </span><span class="si">%s</span><span class="s1"> -&gt; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">edge</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="n">ProcessingChainError</span><span class="p">(</span><span class="s1">&#39;Circular references detected: </span><span class="si">%s</span><span class="s1"> -&gt; </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">par</span><span class="p">,</span> <span class="n">edge</span><span class="p">))</span>
 
         <span class="c1"># if we don&#39;t find a node, this is a leaf</span>
         <span class="n">node</span> <span class="o">=</span> <span class="n">processors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">par</span><span class="p">)</span>
@@ -281,8 +299,6 @@
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Required input parameters:&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">input_par_list</span><span class="p">))</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Copied output parameters:&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">copy_par_list</span><span class="p">))</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Processed output parameters:&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">out_par_list</span><span class="p">))</span>
-        
-    <span class="n">proc_chain</span> <span class="o">=</span> <span class="n">ProcessingChain</span><span class="p">(</span><span class="n">block_width</span><span class="p">,</span> <span class="n">lh5_in</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">verbosity</span> <span class="o">=</span> <span class="n">verbosity</span><span class="p">)</span>
     
     <span class="c1"># Now add all of the input buffers from lh5_in (and also the clk time)</span>
     <span class="k">for</span> <span class="n">input_par</span> <span class="ow">in</span> <span class="n">input_par_list</span><span class="p">:</span>
@@ -317,13 +333,13 @@
                     <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span>
                     <span class="k">if</span><span class="p">(</span><span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
                         <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Database lookup: found&quot;</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="s2">&quot;for&quot;</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
-                <span class="k">except</span><span class="p">:</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                     <span class="k">try</span><span class="p">:</span>
                         <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">recipe</span><span class="p">[</span><span class="s1">&#39;defaults&#39;</span><span class="p">][</span><span class="n">arg</span><span class="p">]</span>
                         <span class="k">if</span><span class="p">(</span><span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
                             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Database lookup: using default value of&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s2">&quot;for&quot;</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
-                    <span class="k">except</span><span class="p">:</span>
-                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Did not find&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="s1">&#39;in database, and could not find default value.&#39;</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                        <span class="k">raise</span> <span class="n">ProcessingChainError</span><span class="p">(</span><span class="s1">&#39;Did not find&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="s1">&#39;in database, and could not find default value.&#39;</span><span class="p">)</span>
             
         <span class="n">kwargs</span> <span class="o">=</span> <span class="n">recipe</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;kwargs&#39;</span><span class="p">,</span> <span class="p">{})</span> <span class="c1"># might also need db lookup here</span>
         <span class="c1"># if init_args are defined, parse any strings and then call func</span>
@@ -340,26 +356,23 @@
                         <span class="n">init_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span>
                         <span class="k">if</span><span class="p">(</span><span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
                             <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Database lookup: found&quot;</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="s2">&quot;for&quot;</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
-                    <span class="k">except</span><span class="p">:</span>
+                    <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
                         <span class="k">try</span><span class="p">:</span>
                             <span class="n">init_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">recipe</span><span class="p">[</span><span class="s1">&#39;defaults&#39;</span><span class="p">][</span><span class="n">arg</span><span class="p">]</span>
                             <span class="k">if</span><span class="p">(</span><span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">0</span><span class="p">):</span>
                                 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Database lookup: using default value of&quot;</span><span class="p">,</span> <span class="n">init_args</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="s2">&quot;for&quot;</span><span class="p">,</span> <span class="n">arg</span><span class="p">)</span>
-                        <span class="k">except</span><span class="p">:</span>
-                            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s1">&#39;Did not find&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="s1">&#39;in database, and could not find default value.&#39;</span><span class="p">)</span>
+                        <span class="k">except</span> <span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                            <span class="k">raise</span> <span class="n">ProcessingChainError</span><span class="p">(</span><span class="s1">&#39;Did not find&#39;</span><span class="p">,</span> <span class="n">arg</span><span class="p">,</span> <span class="s1">&#39;in database, and could not find default value.&#39;</span><span class="p">)</span>
                     <span class="n">arg</span> <span class="o">=</span> <span class="n">init_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
 
                 <span class="c1"># see if string can be parsed by proc_chain</span>
                 <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-                    <span class="k">try</span><span class="p">:</span>
-                        <span class="n">init_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">proc_chain</span><span class="o">.</span><span class="n">get_variable</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
-                    <span class="k">except</span><span class="p">:</span>
-                        <span class="k">pass</span>
+                    <span class="n">init_args</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">proc_chain</span><span class="o">.</span><span class="n">get_variable</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
                     
             <span class="k">if</span><span class="p">(</span><span class="n">verbosity</span><span class="o">&gt;</span><span class="mi">1</span><span class="p">):</span>
                 <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Building function&quot;</span><span class="p">,</span> <span class="n">func</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="s2">&quot;from init_args&quot;</span><span class="p">,</span> <span class="n">init_args</span><span class="p">)</span>
             <span class="n">func</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">init_args</span><span class="p">)</span>
-        <span class="k">except</span><span class="p">:</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
             <span class="k">pass</span>
         <span class="n">proc_chain</span><span class="o">.</span><span class="n">add_processor</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
 
