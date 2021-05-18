@@ -42,7 +42,7 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
         std = fwhm/2.355
         upper =float( (num_sigmas*std)+mean)
         lower = float((-num_sigmas*std)+mean)
-        output_dict.update({pars : {'Mean Value': mean, 'Sigmas Cut': num_sigmas, 'Upper Boundary' : upper, 'Lower$
+        output_dict.update({pars : {'Mean Value': mean, 'Sigmas Cut': num_sigmas, 'Upper Boundary' : upper, 'Lower Boundary': lower}
 
     cut_dict.update({run:output_dict})
     with open(cut_file,'w') as fp:
