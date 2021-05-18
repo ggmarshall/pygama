@@ -5,8 +5,9 @@ import json
 from pygama.analysis import histograms as hist
 import pygama.lh5 as lh5
 import matplotlib.pyplot as plt
+import glob
 
-def get_cut_boundaries(file_path, cut_file, lh5_path, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False)
+def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False)
     """
     Finds cut boundaries for a file pass parameters as a dictionary with the parameter to be cut and the number of$
     """
@@ -30,7 +31,7 @@ def get_cut_boundaries(file_path, cut_file, lh5_path, parameters = {'bl_mean':4,
         return
     elif run in cut_dict and overwrite == True:
         cut_dict.pop(run)
-    all_pars_array = lh5.load_nda(file_path, parameters,  lh5_path)
+    all_pars_array = lh5.load_nda(file_path, parameters,  lh5_group)
     for pars in parameters.keys():
         num_sigmas = parameters[pars]
         par_array = all_pars_array[pars]
@@ -50,21 +51,25 @@ def get_cut_boundaries(file_path, cut_file, lh5_path, parameters = {'bl_mean':4,
 
 
 
-def load_df_with_cuts(files, cut_file_path, lh5_path, verbose=True):
+def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
 
     '''
     This function loads data after applying cuts specified in cut_file
 
     Parameters
     ----------
-    Files : List
-            list of file paths
+    Files : str or list of str's
+        A list of files. Can contain wildcards
     Cut_file_path : string
                     Path to json dictionary file with cuts
-    lh5_path : string
+    lh5_group : string
                 lh5 file path e.g. 'raw/'
     
     '''
+
+    if isinstance(files, str): files = [files]
+    # Expand wildcards
+    files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
 
     def get_cut_indices(df, cut_dict):
     
@@ -126,7 +131,8 @@ def load_df_with_cuts(files, cut_file_path, lh5_path, verbose=True):
                 with open(cut_file,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
-        tb = sto.read_object(lh5_path, file)[0]
+
+        tb = sto.read_object(lh5_group, file)[0]
         df = lh5.Table.get_dataframe(tb)
         idxs = get_cut_indices(df, cut_dict)
         df = df.iloc[idxs]
@@ -140,7 +146,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_path, verbose=True):
 
 
 
-def load_nda_with_cuts(files, cut_file_path, lh5_path, parameters, verbose=True):
+def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True):
 
     '''
     FUNCTIONALITY NOT YET IMPLEMENTED
@@ -153,18 +159,18 @@ def load_nda_with_cuts(files, cut_file_path, lh5_path, parameters, verbose=True)
             list of file paths
     Cut_file_path : string
                     Path to json dictionary file with cuts
-    lh5_path : string
+    lh5_group : string
                 lh5 file path e.g. 'raw/'
     parameters : list
                 list of parameters to load, must be different to cut parameters
     
     '''
 
-    def get_cut_indexes(file, cut_dict, lh5_path):
+    def get_cut_indexes(file, cut_dict, lh5_group):
     
         indexes = None
         keys = cut_dict.keys()
-        all_cut_data = lh5.load_nda(file, keys, lh5_path)
+        all_cut_data = lh5.load_nda(file, keys, lh5_group)
         for cut in keys:
             data = all_cut_data[cut]
             upper = cut_dict[cut]['Upper Boundary']
@@ -180,6 +186,9 @@ def load_nda_with_cuts(files, cut_file_path, lh5_path, parameters, verbose=True)
     
     sto = lh5.Store()
 
+    if isinstance(files, str): files = [files]
+    # Expand wildcards
+    files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
 
     with open(cut_file_path,'r') as f:
         full_cut_dict = json.load(f)
@@ -223,8 +232,8 @@ def load_nda_with_cuts(files, cut_file_path, lh5_path, parameters, verbose=True)
                 with open(cut_file,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
-        idx = get_cut_indexes(file, cut_dict, lh5_path)
+        idx = get_cut_indexes(file, cut_dict, lh5_group)
         idxs.append(idx)
     #Concat dataframes together and return
-    all_data = lh5.load_nda(files, parameters, lh5_path, idx_list=idxs)
+    all_data = lh5.load_nda(files, parameters, lh5_group, idx_list=idxs)
     return all_data

@@ -7,7 +7,7 @@ import pygama.lh5 as lh5
 import matplotlib.pyplot as plt
 from pygama.genpar_tmp import cuts as cts
 
-def get_decay_constant(file_path, cut_path, lh5_path, dict_file):
+def get_decay_constant(file_path, cut_path, lh5_group, dict_file):
     """
     Gets the decay constant as saves it to the specified json 
     """
@@ -30,7 +30,7 @@ def get_decay_constant(file_path, cut_path, lh5_path, dict_file):
     elif run in tau_dict and overwrite == True:
         tau_dict.pop(run)
     
-    slopes = cts.load_df_with_cuts([file_path],cut_path,lh5_path, verbose=False)['tail_slope']
+    slopes = cts.load_df_with_cuts(file_path,cut_path, lh5_group , verbose=False)['tail_slope']
     counts, bins, var = hist.get_hist(slopes, bins=50000, range=(-0.01,0))
     bin_centres = hist.get_bin_centers(bins)
     tau = -1/(bin_centres[np.argmax(counts)])
