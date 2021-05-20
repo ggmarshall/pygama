@@ -45,3 +45,4 @@ from ._processors.time_point_thresh import time_point_thresh
 from ._processors.old_linear_slope_fit import old_linear_slope_fit
 from ._processors.presum import presum
 from ._processors.windower import windower
+from ._processors.upsampler import upsampler
