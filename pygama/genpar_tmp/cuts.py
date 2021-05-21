@@ -8,8 +8,10 @@ import matplotlib.pyplot as plt
 import glob
 
 def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False)
+    
     """
-    Finds cut boundaries for a file pass parameters as a dictionary with the parameter to be cut and the number of$
+    Finds cut boundaries for a file pass parameters as a dictionary with the parameter to be cut and the number of 
+    sigmas to cut
     """
     if os.path.isfile(cut_file) == True:
         cut_dict = json.load(open(cut_file,'r'))
