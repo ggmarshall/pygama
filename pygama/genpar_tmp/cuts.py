@@ -53,7 +53,7 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
 
 def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
 
-    '''
+    """
     This function loads data after applying cuts specified in cut_file
 
     Parameters
@@ -65,7 +65,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
     lh5_group : string
                 lh5 file path e.g. 'raw/'
     
-    '''
+    """
 
     if isinstance(files, str): files = [files]
     # Expand wildcards
@@ -148,7 +148,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
 
 def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True):
 
-    '''
+    """
     FUNCTIONALITY NOT YET IMPLEMENTED
 
     This function loads data after applying cuts specified in cut_file
@@ -164,7 +164,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
     parameters : list
                 list of parameters to load, must be different to cut parameters
     
-    '''
+    """
 
     def get_cut_indexes(file, cut_dict, lh5_group):
     
