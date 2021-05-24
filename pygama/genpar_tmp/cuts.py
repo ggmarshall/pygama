@@ -7,7 +7,7 @@ import pygama.lh5 as lh5
 import matplotlib.pyplot as plt
 import glob
 
-def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False)
+def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False):
     
     """
     Finds cut boundaries for a file pass parameters as a dictionary with the parameter to be cut and the number of 
@@ -17,7 +17,7 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
         cut_dict = json.load(open(cut_file,'r'))
 
     else:
-	cut_dict = {}
+        cut_dict = {}
 
 
     output_dict = {}
@@ -44,7 +44,7 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
         std = fwhm/2.355
         upper =float( (num_sigmas*std)+mean)
         lower = float((-num_sigmas*std)+mean)
-        output_dict.update({pars : {'Mean Value': mean, 'Sigmas Cut': num_sigmas, 'Upper Boundary' : upper, 'Lower Boundary': lower}
+        output_dict.update({pars : {'Mean Value': mean, 'Sigmas Cut': num_sigmas, 'Upper Boundary' : upper, 'Lower Boundary': lower}})
 
     cut_dict.update({run:output_dict})
     with open(cut_file,'w') as fp:
