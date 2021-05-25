@@ -91,8 +91,8 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
         return np.where(indexes)[0]
 
     sto = lh5.Store()
-    if os.path.isfile(cut_file) == False:
-        get_cut_boundaries(files[0], cut_file)
+    if os.path.isfile(cut_file_path) == False:
+        get_cut_boundaries(files[0], cut_file_path, lh5_group)
     with open(cut_file_path,'r') as f:
             full_cut_dict = json.load(f)
     #get first file name
@@ -108,7 +108,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
             print('Loaded Cut Dictionary')
     except KeyError:
         print("Cuts haven't been calculated yet, getting cut boundaries")
-        get_cut_boundaries(files[0], cut_file)
+        get_cut_boundaries(files[0], cut_file_path, lh5_group)
         with open(cut_file_path,'r') as f:
             full_cut_dict = json.load(f)
         cut_dict = full_cut_dict[run1]
@@ -129,7 +129,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
                 cut_dict = full_cut_dict[run1]
             except IndexError:
                 print("Cuts haven't been calculated yet, getting cut boundaries")
-                get_cut_boundaries(files[0], cut_file_path)
+                get_cut_boundaries(files[0], cut_file_path, lh5_group)
                 with open(cut_file,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
