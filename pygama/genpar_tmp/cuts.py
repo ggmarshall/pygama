@@ -51,7 +51,36 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
         json.dump(cut_dict,fp, indent=4)
     return
 
+def get_cut_indexes(file, cut_dict, lh5_group, verbose):
 
+    """
+    Returns a mask of the data that passes cuts takes in dictionary of cuts and a single file
+
+    Parameters
+    ----------
+    File : str 
+           File path
+    Cut_dict : string
+                Dictionary file with cuts
+    lh5_group : string
+                lh5 file path e.g. 'raw/'
+    """
+    
+    indexes = None
+    keys = cut_dict.keys()
+    all_cut_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
+    for cut in keys:
+        data = all_cut_data[cut]
+        upper = cut_dict[cut]['Upper Boundary']
+        lower = cut_dict[cut]['Lower Boundary']
+        idxs = (data<upper) & (data>lower) 
+        if indexes is not None:
+            indexes = indexes & idxs
+            
+        else:
+            indexes = idxs
+
+    return indexes
 
 def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
 
@@ -72,23 +101,6 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
     if isinstance(files, str): files = [files]
     # Expand wildcards
     files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
-
-    def get_cut_indices(df, cut_dict):
-    
-        indexes = None
-        keys = cut_dict.keys()
-        for cut in keys:
-            data = df[cut].to_numpy()
-            upper = cut_dict[cut]['Upper Boundary']
-            lower = cut_dict[cut]['Lower Boundary']
-            idxs = (data<upper) & (data>lower) 
-            if indexes is not None:
-                indexes = indexes & idxs
-            
-            else:
-                indexes = idxs
-
-        return np.where(indexes)[0]
 
     sto = lh5.Store()
     if os.path.isfile(cut_file_path) == False:
@@ -112,7 +124,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
         with open(cut_file_path,'r') as f:
             full_cut_dict = json.load(f)
         cut_dict = full_cut_dict[run1]
-    all_data = {}
+    idxs = []
     for file in files:
         if verbose:
                 print("loading data for", file)
@@ -133,18 +145,18 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
                 with open(cut_file,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
+        
+        idx = get_cut_indexes(file, cut_dict, lh5_group, verbose)
+        idxs.append(idx)
+    mask = np.concatenate(idxs)
+    
+    tb = sto.read_object(lh5_group, files)[0]
+    data = lh5.Table.get_dataframe(tb)
+        
+    cut_data = data.iloc[mask]
 
-        tb = sto.read_object(lh5_group, file)[0]
-        df = lh5.Table.get_dataframe(tb)
-        idxs = get_cut_indices(df, cut_dict)
-        df = df.iloc[idxs]
-        all_data.update({os.path.basename(file):df})
-
-    #Concat dataframes together and return
-    all_data = pd.concat(all_data)
-    all_data.reset_index(inplace= True)
-    all_data.rename(columns = {'level_0':'File','level_1':'waveform_no'}, inplace = True)
-    return all_data
+    cut_data.reset_index(inplace= True)
+    return cut_data
 
 
 
@@ -167,23 +179,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
     
     """
 
-    def get_cut_indexes(file, cut_dict, lh5_group, verbose):
-    
-        indexes = None
-        keys = cut_dict.keys()
-        all_cut_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
-        for cut in keys:
-            data = all_cut_data[cut]
-            upper = cut_dict[cut]['Upper Boundary']
-            lower = cut_dict[cut]['Lower Boundary']
-            idxs = (data<upper) & (data>lower) 
-            if indexes is not None:
-                indexes = indexes & idxs
-            
-            else:
-                indexes = idxs
 
-        return indexes
     
     sto = lh5.Store()
 
@@ -236,7 +232,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
                 cut_dict = full_cut_dict[run1]
         idx = get_cut_indexes(file, cut_dict, lh5_group, verbose)
         idxs.append(idx)
-        mask = np.concatenate(idxs)
+    mask = np.concatenate(idxs)
     #Concat dataframes together and return
     par_data = lh5.load_nda(files, parameters, lh5_group, verbose=verbose)
     for par in par_data:
