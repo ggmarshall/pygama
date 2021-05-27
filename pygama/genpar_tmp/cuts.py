@@ -171,7 +171,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
     
         indexes = None
         keys = cut_dict.keys()
-        all_cut_data = lh5.load_nda(file, keys, lh5_group, verbose)
+        all_cut_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
         for cut in keys:
             data = all_cut_data[cut]
             upper = cut_dict[cut]['Upper Boundary']
@@ -209,7 +209,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
             print('Loaded Cut Dictionary')
     except KeyError:
         print("Cuts haven't been calculated yet, getting cut boundaries")
-        get_cut_boundaries(files[0], cut_file, lh5_group, verbose)
+        get_cut_boundaries(files[0], cut_file, lh5_group)
         with open(cut_file_path,'r') as f:
             full_cut_dict = json.load(f)
         cut_dict = full_cut_dict[run1]
@@ -234,11 +234,11 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
                 with open(cut_file,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
-        idx = get_cut_indexes(file, cut_dict, lh5_group)
+        idx = get_cut_indexes(file, cut_dict, lh5_group, verbose)
         idxs.append(idx)
         mask = np.concatenate(idxs)
     #Concat dataframes together and return
-    par_data = lh5.load_nda(files, parameters, lh5_group, verbose)
+    par_data = lh5.load_nda(files, parameters, lh5_group, verbose=verbose)
     for par in par_data:
         par_data[par] = par_data[par][mask]
     return par_data
