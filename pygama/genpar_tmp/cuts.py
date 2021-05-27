@@ -127,7 +127,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
             run1 = run
             try:
                 cut_dict = full_cut_dict[run1]
-            except IndexError:
+            except KeyError:
                 print("Cuts haven't been calculated yet, getting cut boundaries")
                 get_cut_boundaries(files[0], cut_file_path, lh5_group)
                 with open(cut_file,'r') as f:
@@ -151,7 +151,6 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
 def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True):
 
     """
-    FUNCTIONALITY NOT YET IMPLEMENTED
 
     This function loads data after applying cuts specified in cut_file
 
@@ -184,7 +183,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
             else:
                 indexes = idxs
 
-        return np.where(indexes)[0]
+        return indexes
     
     sto = lh5.Store()
 
@@ -237,6 +236,10 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
                 cut_dict = full_cut_dict[run1]
         idx = get_cut_indexes(file, cut_dict, lh5_group)
         idxs.append(idx)
+        mask = np.concatenate(idxs)
     #Concat dataframes together and return
-    all_data = lh5.load_nda(files, parameters, lh5_group, idx_list=idxs)
-    return all_data
+    par_data = lh5.load_nda(files, parameters, lh5_group)
+    for par in par_data:
+        par_data[par] = par_data[par][mask]
+    return par_data
+
