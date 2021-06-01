@@ -141,7 +141,7 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
                 cut_dict = full_cut_dict[run1]
             except KeyError:
                 print("Cuts haven't been calculated yet, getting cut boundaries")
-                get_cut_boundaries(files[0], cut_file_path, lh5_group)
+                get_cut_boundaries(file, cut_file_path, lh5_group)
                 with open(cut_file,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
@@ -168,9 +168,9 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
 
     Parameters
     ----------
-    Files : List
+    files : List
             list of file paths
-    Cut_file_path : string
+    cut_file_path : string
                     Path to json dictionary file with cuts
     lh5_group : string
                 lh5 file path e.g. 'raw/'
@@ -205,7 +205,7 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
             print('Loaded Cut Dictionary')
     except KeyError:
         print("Cuts haven't been calculated yet, getting cut boundaries")
-        get_cut_boundaries(files[0], cut_file, lh5_group)
+        get_cut_boundaries(files[0], cut_file_path, lh5_group)
         with open(cut_file_path,'r') as f:
             full_cut_dict = json.load(f)
         cut_dict = full_cut_dict[run1]
@@ -224,10 +224,10 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
             run1 = run
             try:
                 cut_dict = full_cut_dict[run1]
-            except IndexError:
+            except KeyError:
                 print("Cuts haven't been calculated yet, getting cut boundaries")
-                get_cut_boundaries(files[0], cut_file_path, lh5_group)
-                with open(cut_file,'r') as f:
+                get_cut_boundaries(file, cut_file_path, lh5_group)
+                with open(cut_file_path,'r') as f:
                     full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
         idx = get_cut_indexes(file, cut_dict, lh5_group, verbose)
