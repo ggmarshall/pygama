@@ -7,6 +7,22 @@ import pygama.dsp.dsp_optimize as opt
 sto = lh5.Store()
 
 def run_optimisation(file,opt_config,dsp_config,fom,cuts):
+    """
+    Runs optimisation on .lh5 file
+    
+    Parameters
+    ----------
+    file: string
+        path to raw .lh5 file
+    opt_config: str
+        path to JSON dictionary to configure optimisation
+    dsp_config: str
+        path to JSON dictionary specifying dsp configuration
+    fom: function
+        When given the output lh5 table of a DSP iteration, the
+        fom_function must return a scalar figure-of-merit value upon which the
+        optimization will be based. Should accept verbosity as a second argument    
+    """
     grid = set_par_space(list(opt_config.keys())[0],opt_config[list(opt_config.keys())[0]],init_args = True)
     waveforms = sto.read_object('/raw/waveform', file,idx=cuts,verbosity=0)[0]
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms } )
@@ -24,29 +40,29 @@ def set_values(par_values):
     string_values = [ f'{val:.2f}{par_values["unit"]}' for val in string_values]
     return string_values
 
-def build_energy_cuts(file,Emin,Emax):
-    wf_maxes = sto.read_object('/raw/wf_max', file,verbosity=0)[0].nda
-    fpga_bl = sto.read_object('/raw/energy',file,verbosity=0)[0].nda
-    wf_maxes -=fpga_bl
-    energy_cuts = []
-    for i in range(len(wf_maxes)):
-        if wf_maxes[i] > Emin and wf_maxes[i] < Emax:
-            energy_cuts.extend([i])
-    return energy_cuts    
+def build_energy_mask(file, Emin, Emax):
+
+    """
+    creates and returns array mask for specified energy range using maxes of
+    raw waveforms
+
+    Parameters
+    ----------
+    File: str
+        path to raw .lh5 file
+    Emin: float
+        energy selection lower bound
+    Emax: float
+        energy selection upper bound
+
+    """
+    wf_maxes = sto.read_object('/raw/wf_max', file, verbosity=0)[0].nda
+    fpga_bl = sto.read_object('/raw/energy', file, verbosity=0)[0].nda
+    wf_maxes -= fpga_bl
+    return (wf_maxes >= Emin) & (wf_maxes <= Emax)
 
 def fom_FWHM(tb_in,verbosity):
-    #change to use pygama hist
     Energies=tb_in['zacEmax'].nda
-    heights,bins,_ = plt.hist(Energies, bins=np.linspace(40500,41500,251),histtype='step')
-    peak = max(heights)
-    halfmax = peak/2
-    for i in range(1,len(heights)):
-        if heights[i]<halfmax and heights[i+1]>=halfmax:
-            left = bins[i+1]
-            break
-    for i in range(len(heights)):
-        if heights[-i]<halfmax and heights[-i-1]>=halfmax:
-            right = bins[-i-1]
-            break
-    plt.close()
-    return (100*(right-left)/(bins[np.argmax(heights)]))
+    hist, bins, var = pgh.get_hist(Energies, dx = 2, range = (40000,42000))
+    fwhm, uncertainty = pgh.get_fwhm(hist,bins,var)
+    return fwhm
