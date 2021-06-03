@@ -44,7 +44,7 @@ def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=
 
 
 
-ParGridDimension = namedtuple('ParGridDimension', 'name i_arg value_strs companions')
+ParGridDimension = namedtuple('ParGridDimension', 'name i_arg value_strs companions init_arg')
 
 class ParGrid():
     """ Parameter Grid class
@@ -61,8 +61,8 @@ class ParGrid():
     def __init__(self):
         self.dims = []
 
-    def add_dimension(self, name, i_arg, value_strs, companions = None):
-        self.dims.append( ParGridDimension(name, i_arg, value_strs, companions) )
+    def add_dimension(self, name, i_arg, value_strs, companions = None, init_arg = False):
+        self.dims.append( ParGridDimension(name, i_arg, value_strs, companions, init_arg) )
 
     def get_n_dimensions(self):
         return len(self.dims)
@@ -115,22 +115,29 @@ class ParGrid():
         i_arg = self.dims[i_dim].i_arg
         value_str = self.dims[i_dim].value_strs[i_par]
         companions = self.dims[i_dim].companions
-        return name, i_arg, value_str, companions
+        init_arg = self.dims[i_dim].init_arg
+        return name, i_arg, value_str, companions,init_arg
 
     def print_data(self, indices):
         print(f"Grid point at indices {indices}:")
         for i_dim, i_par in enumerate(indices):
-            name, i_arg, value_str, _ = self.get_data(i_dim, i_par)
+            name, i_arg, value_str, _, _ = self.get_data(i_dim, i_par)
             print(f"{name}[{i_arg}] = {value_str}")
 
     def set_dsp_pars(self, dsp_config, indices):
         for i_dim, i_par in enumerate(indices):
-            name, i_arg, value_str, companions = self.get_data(i_dim, i_par)
-            dsp_config['processors'][name]['args'][i_arg] = value_str
-            if companions is None: continue
-            for ( c_name, c_i_arg, c_value_str ) in companions:
-               dsp_config['processors'][c_name]['args'][c_i_arg] = c_value_str[i_par]
-
+            name, i_arg, value_str, companions, init = self.get_data(i_dim, i_par)
+            if init ==False:
+                dsp_config['processors'][name]['args'][i_arg] = value_str
+                if companions is None: continue
+                for ( c_name, c_i_arg, c_value_str ) in companions:
+                    dsp_config['processors'][c_name]['args'][c_i_arg] = c_value_str[i_par]
+            else:
+                dsp_config['processors'][name]['init_args'][i_arg] = value_str
+                if companions is None: continue
+                for ( c_name, c_i_arg, c_value_str ) in companions:
+                   dsp_config['processors'][c_name]['init_args'][c_i_arg] = c_value_str[i_par]
+#Need to modify companions, a companion for init arg isn't necessarily init arg itself, same for arg
 
 def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0):
     """Extract a table of optimization values for a grid of DSP parameters 
@@ -172,7 +179,7 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0)
     grid_values = np.ndarray(shape=grid.get_shape())
     iii = grid.get_zero_indices()
     if verbosity > 0: print("starting grid calculations...")
-    while True:    
+    while True:
         grid.set_dsp_pars(dsp_config, iii)
         if verbosity > 1: pprint(dsp_config)
         if verbosity > 0: grid.print_data(iii)
@@ -184,4 +191,3 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0)
         if verbosity > 0: print("value:", grid_values[tuple(iii)])
         if not grid.iterate_indices(iii): break
     return grid_values
-        
