@@ -22,7 +22,7 @@ def get_decay_constant(file_path, cut_path, lh5_group, dict_file):
 
     file_name = os.path.splitext(base)[0]
     parts = file_name.split('-')
-    run = parts[0]+'-'+parts[1]+'-'+parts[2]+'-'+parts[3]  #Probably a nicer way to do this
+    detector = parts[1] 
 
     if run in tau_dict and overwrite == False:
         print('Tau already Calculated and Overwrite is False')
@@ -35,7 +35,7 @@ def get_decay_constant(file_path, cut_path, lh5_group, dict_file):
     bin_centres = hist.get_bin_centers(bins)
     tau = round(-1/(bin_centres[np.argmax(counts)]),1)
 
-    tau_dict.update({run:tau})
+    tau_dict.update({detector:tau})
     with open(dict_file,'w') as fp:
         json.dump(tau_dict,fp, indent=4)
     return tau
