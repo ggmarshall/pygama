@@ -8,9 +8,30 @@ import matplotlib.pyplot as plt
 from pygama.genpar_tmp import cuts as cts
 
 def get_decay_constant(file_path, cut_path, lh5_group, dict_file):
+    
     """
-    Gets the decay constant as saves it to the specified json 
+    Finds the decay constant from the modal value of the tail slope after cuts
+    and saves it to the specified json.
+
+    Parameters
+    ----------
+
+    file_path : str
+                path to file to calculate decay const from
+    
+    cut_path : str
+               path to json file to load cuts from, if cuts aren't already
+               calculated it will calculate them and save them to this path
+    
+    lh5_group : str
+                lh5 path (e.g. 'raw')
+
+    dict_file ; str
+                path to json file to save decay constant value to. 
+                It will be saved as a dictionary of form 'detector': decay_constant
     """
+
+
     if os.path.isfile(dict_file) == True:
         tau_dict = json.load(open(dict_file,'r'))
 

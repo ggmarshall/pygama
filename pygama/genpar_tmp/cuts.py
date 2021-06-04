@@ -10,9 +10,32 @@ import glob
 def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False):
     
     """
-    Finds cut boundaries for a file pass parameters as a dictionary with the parameter to be cut and the number of 
-    sigmas to cut
+    Finds double sided cut boundaries for a file for the parameters specified 
+
+
+    Parameters
+    ----------
+
+    file_path : str
+                path to data file
+
+    cut_file : str
+                path to json file of cuts will save cuts in the form:
+                {detector-source-run : {parameter : {Mean_value : mean_value, Sigmas cut : sigmas, 
+                                                     Upper Boundary : value, Lower Boundary : value}}
+
+    lh5_group : str
+                lh5_path (e.g. 'raw')
+
+    parameters : dict
+                 dictionary with the parameter to be cut and the number of sigmas to cut at
+
+    overwrite : bool
+                True to overwrite existing cuts in json file
+
     """
+
+
     if os.path.isfile(cut_file) == True:
         cut_dict = json.load(open(cut_file,'r'))
 
@@ -54,7 +77,8 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
 def get_cut_indexes(file, cut_dict, lh5_group, verbose):
 
     """
-    Returns a mask of the data that passes cuts takes in dictionary of cuts and a single file
+    Returns a mask of the data, for a single file, that passes cuts based on dictionary of cuts 
+    in form of cut boundaries above
 
     Parameters
     ----------
@@ -63,7 +87,7 @@ def get_cut_indexes(file, cut_dict, lh5_group, verbose):
     Cut_dict : string
                 Dictionary file with cuts
     lh5_group : string
-                lh5 file path e.g. 'raw/'
+                lh5 file path e.g. 'raw'
     """
     
     indexes = None
@@ -90,11 +114,13 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
     Parameters
     ----------
     Files : str or list of str's
-        A list of files. Can contain wildcards
+             A list of files. Can contain wildcards
+    
     Cut_file_path : string
                     Path to json dictionary file with cuts
+    
     lh5_group : string
-                lh5 file path e.g. 'raw/'
+                lh5 file path e.g. 'raw'
     
     """
 
