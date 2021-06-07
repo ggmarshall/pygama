@@ -6,7 +6,7 @@ import pygama.dsp.dsp_optimize as opt
 #import pygama.genpar_tmp.cuts as cuts
 sto = lh5.Store()
 
-def run_optimisation(file,opt_config,dsp_config, cuts, fom, **fom_kwargs):
+def run_optimisation(file,opt_config,dsp_config, db_dict=None, cuts, fom, **fom_kwargs):
     """
     Runs optimisation on .lh5 file
     
@@ -29,7 +29,7 @@ def run_optimisation(file,opt_config,dsp_config, cuts, fom, **fom_kwargs):
     waveforms = sto.read_object('/raw/waveform', file,idx=cuts,verbosity=0)[0]
     baseline = sto.read_object('/raw/baseline', file,idx=cuts,verbosity=0)[0]
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms , 'baseline':baseline} )
-    return opt.run_grid(tb_data,dsp_config,grid,fom, **fom_kwargs, verbosity=0)
+    return opt.run_grid(tb_data,dsp_config,grid,fom,db_dict = db_dict,verbosity=0 **fom_kwargs)
 
 def set_par_space(processor, par_values):
     par_space = opt.ParGrid()
