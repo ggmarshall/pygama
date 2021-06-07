@@ -4,7 +4,7 @@ from collections import namedtuple
 from pprint import pprint
 
 
-def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0):
+def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0, **fom_kwargs):
     """
     run one iteration of DSP on tb_data 
 
@@ -28,6 +28,8 @@ def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=
         optimization will be based. Should accept verbosity as a second argument
     verbosity : int (optional)
         verbosity for the processing chain and fom_function calls
+    fom_kwargs:
+        any keyword arguments to pass to the fom
 
     Returns:
     --------
@@ -39,30 +41,34 @@ def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=
     
     pc, tb_out = build_processing_chain(tb_data, dsp_config, db_dict=db_dict, verbosity=verbosity)
     pc.execute()
-    if fom_function is not None: return fom_function(tb_out, verbosity)
+    if fom_function is not None: 
+        if fom_kwargs is not None:
+            return fom_function(tb_out, verbosity, **fom_kwargs)
+        else: 
+            return fom_function(tb_out, verbosity)
     else: return tb_out
 
 
-
-ParGridDimension = namedtuple('ParGridDimension', 'name i_arg value_strs companions init_arg')
+ParGridDimension = namedtuple('ParGridDimension', 'name arg_type i_arg value_strs companions init_arg')
 
 class ParGrid():
     """ Parameter Grid class
 
     Each ParGrid entry corresponds to a dsp parameter to be varied.
     The ntuples must follow the pattern: 
-    ( name, i_arg, value_strs companions) : ( str, int, list of str, list or None )
+    ( name, arg_type, i_arg, value_strs companions) : ( str, str default:'args',int, list of str, list or None )
     where name is the name of the dsp routine in dsp_config whose  be
-    optimized, i_arg is the index of the argument to be varied, value_strs is
+    optimized, arg_type is the type to be varied by default 'args' but in some cases 'init_args' may be wanted
+    i_arg is the index of the argument to be varied, value_strs is
     the array of strings to set the argument to, and companions is an optional
-    list of ( name, i_arg, value_strs ) tuples for companion arguments that
+    list of ( name, arg_type, i_arg, value_strs ) tuples for companion arguments that
     need to change along with this one
     """
     def __init__(self):
         self.dims = []
 
-    def add_dimension(self, name, i_arg, value_strs, companions = None, init_arg = False):
-        self.dims.append( ParGridDimension(name, i_arg, value_strs, companions, init_arg) )
+    def add_dimension(self, name, i_arg, value_strs, companions = None, arg_type='args'):
+        self.dims.append( ParGridDimension(name, arg_type, i_arg, value_strs, companions) )
 
     def get_n_dimensions(self):
         return len(self.dims)
@@ -112,6 +118,7 @@ class ParGrid():
 
     def get_data(self, i_dim, i_par):
         name = self.dims[i_dim].name
+        arg_type = self.dims[i_dim].arg_type
         i_arg = self.dims[i_dim].i_arg
         value_str = self.dims[i_dim].value_strs[i_par]
         companions = self.dims[i_dim].companions
@@ -121,25 +128,17 @@ class ParGrid():
     def print_data(self, indices):
         print(f"Grid point at indices {indices}:")
         for i_dim, i_par in enumerate(indices):
-            name, i_arg, value_str, _, _ = self.get_data(i_dim, i_par)
+            name, arg_type, i_arg, value_str, _, _ = self.get_data(i_dim, i_par)
             print(f"{name}[{i_arg}] = {value_str}")
 
     def set_dsp_pars(self, dsp_config, indices):
         for i_dim, i_par in enumerate(indices):
-            name, i_arg, value_str, companions, init = self.get_data(i_dim, i_par)
-            if init ==False:
-                dsp_config['processors'][name]['args'][i_arg] = value_str
-                if companions is None: continue
-                for ( c_name, c_i_arg, c_value_str ) in companions:
-                    dsp_config['processors'][c_name]['args'][c_i_arg] = c_value_str[i_par]
-            else:
-                dsp_config['processors'][name]['init_args'][i_arg] = value_str
-                if companions is None: continue
-                for ( c_name, c_i_arg, c_value_str ) in companions:
-                   dsp_config['processors'][c_name]['init_args'][c_i_arg] = c_value_str[i_par]
-#Need to modify companions, a companion for init arg isn't necessarily init arg itself, same for arg
+            name, arg_type, i_arg, value_str, companions, init = self.get_data(i_dim, i_par)
+            if companions is None: continue
+            for ( c_name, c_arg_type, c_i_arg, c_value_str ) in companions:
+                dsp_config['processors'][c_name][c_arg_type][c_i_arg] = c_value_str[i_par]
 
-def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0):
+def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0, **fom_kwargs):
     """Extract a table of optimization values for a grid of DSP parameters 
 
     The grid argument defines a list of parameters and values over which to run
@@ -168,6 +167,8 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0)
         DSP parameters database. See build_processing_chain for formatting info
     verbosity : int (optional)
         verbosity for the processing chain and fom_function calls
+    **fom_kwargs : 
+        Any keyword arguments for fom_function
 
     Returns:
     --------
@@ -187,7 +188,9 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0)
                                               dsp_config,
                                               db_dict=db_dict,
                                               fom_function=fom_function,
-                                              verbosity=verbosity)
+                                              verbosity=verbosity,
+                                              **fom_kwargs)
         if verbosity > 0: print("value:", grid_values[tuple(iii)])
         if not grid.iterate_indices(iii): break
     return grid_values
+
