@@ -31,7 +31,7 @@ def run_optimisation(file,opt_config,dsp_config, cuts, fom, **fom_kwargs):
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms , 'baseline':baseline} )
     return opt.run_grid(tb_data,dsp_config,grid,fom, **fom_kwargs, verbosity=0)
 
-def set_par_space(processor, par_values,init_args=False):
+def set_par_space(processor, par_values):
     par_space = opt.ParGrid()
     for arg_t in par_values.keys():
         p_values = par_values[arg_t]

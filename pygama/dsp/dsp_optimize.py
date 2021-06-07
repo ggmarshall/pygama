@@ -49,7 +49,7 @@ def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=
     else: return tb_out
 
 
-ParGridDimension = namedtuple('ParGridDimension', 'name arg_type i_arg value_strs companions init_arg')
+ParGridDimension = namedtuple('ParGridDimension', 'name arg_type i_arg value_strs companions')
 
 class ParGrid():
     """ Parameter Grid class
@@ -122,8 +122,7 @@ class ParGrid():
         i_arg = self.dims[i_dim].i_arg
         value_str = self.dims[i_dim].value_strs[i_par]
         companions = self.dims[i_dim].companions
-        init_arg = self.dims[i_dim].init_arg
-        return name, i_arg, value_str, companions,init_arg
+        return name, arg_type, i_arg, value_str, companions
 
     def print_data(self, indices):
         print(f"Grid point at indices {indices}:")
@@ -133,7 +132,8 @@ class ParGrid():
 
     def set_dsp_pars(self, dsp_config, indices):
         for i_dim, i_par in enumerate(indices):
-            name, arg_type, i_arg, value_str, companions, init = self.get_data(i_dim, i_par)
+            name, arg_type, i_arg, value_str, companions = self.get_data(i_dim, i_par)
+            dsp_config['processors'][name][arg_type][i_arg] = value_str
             if companions is None: continue
             for ( c_name, c_arg_type, c_i_arg, c_value_str ) in companions:
                 dsp_config['processors'][c_name][c_arg_type][c_i_arg] = c_value_str[i_par]
