@@ -116,22 +116,27 @@ def get_cut_indexes(all_data, cut_dict, verbose=False):
 
     return indexes
 
-def load_df_with_cuts(files, cut_file, lh5_group, verbose=True):
+def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean':4,'bl_std':4, 'pz_std':4}, verbose=True):
 
     """
-    This function loads data after applying cuts specified in cut_file
 
+    This function loads all data after applying cuts, by default it will simply load the data according to the default cut parameters. 
+    You can specify these cut parameters with a dictionary. If you supply a cut file json it will load and save the cuts to this 
+    file in the form of get_cut_boundaries
     Parameters
     ----------
-    Files : str or list of str's
-             A list of files. Can contain wildcards
-    
-    cut_file : string, dict
-                    Path to json dictionary file with cuts or dictionary of cuts such as output of generate cuts
-                    in form {"char_data-detector-measurement-run" : cut_dict}
-    
+    files : List
+            list of file paths
+
     lh5_group : string
-                lh5 file path e.g. 'raw'
+                lh5 file path e.g. 'raw/'
+    
+    cut_file : string
+                Path to json dictionary file with cuts, if provided cuts will be saved/loaded from here.
+    
+    cut_parameters :
+                Dictionary in the form {cut:no_sigmas}, can be double sided {cut:{"left":no_sigmas,"right":no_sigmas}}
+                if cut_file provided and cuts found there will overrule cut_parameters, if none found will save these to cut_file
     
     """
 
@@ -139,6 +144,11 @@ def load_df_with_cuts(files, cut_file, lh5_group, verbose=True):
     if isinstance(files, str): files = [files]
     # Expand wildcards
     files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
+
+    base=os.path.basename(files[0])
+    file_name = os.path.splitext(base)[0]
+    datatype, detector, measurement, run, timestamp = file_name.split('-')
+    run1 = datatype+'-'+detector+'-'+measurement+'-'+run
 
     if cut_file is None:
         data = lh5.load_nda(files[0], cut_parameters.keys(), lh5_group)
@@ -228,12 +238,19 @@ def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_paramet
     ----------
     files : List
             list of file paths
-    cut_file : string
-                    Path to json dictionary file with cuts
+
     lh5_group : string
                 lh5 file path e.g. 'raw/'
-    parameters : list
-                list of parameters to load, must be different to cut parameters
+
+    parameters : str, list
+                parameters to load
+    
+    cut_file : string
+                Path to json dictionary file with cuts, if provided cuts will be saved/loaded from here.
+    
+    cut_parameters :
+                Dictionary in the form {cut:no_sigmas}, can be double sided {cut:{"left":no_sigmas,"right":no_sigmas}}
+                if cut_file provided and cuts found there will overrule cut_parameters, if none found will save these to cut_file
     
     """
 
