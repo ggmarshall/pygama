@@ -2,37 +2,63 @@ import numpy as np
 import pandas as pd
 import os
 import json
-from pygama.analysis import histograms as hist
+from pygama.analysis import histograms as pgh
 import pygama.lh5 as lh5
 import matplotlib.pyplot as plt
 import glob
 
+def generate_cuts(data, parameters):
+    """
+    Finds double sided cut boundaries for a file for the parameters specified 
+    
+    Parameters
+    ----------
+    data : lh5 table or dictionary of arrays
+                data to calculate cuts on
+    parameters : dict
+                 dictionary with the parameter to be cut and the number of sigmas to cut at
+    """
+
+    output_dict = {}
+    for pars in parameters.keys():
+        num_sigmas = parameters[pars]
+        par_array = data[pars]
+        if not isinstance(par_array, np.ndarray):
+            par_array = par_array.nda
+        counts, bins, var = pgh.get_hist(par_array,10**5)
+        bin_centres = pgh.get_bin_centers(bins)
+        fwhm = pgh.get_fwhm(counts, bins)[0]
+        mean = float(bin_centres[np.argmax(counts)])
+        std = fwhm/2.355
+        if isinstance(num_sigmas, (int, float)):
+            num_sigmas_left = num_sigmas
+            num_sigmas_right = num_sigmas
+        elif isinstance(num_sigmas, dict):
+            num_sigmas_left = num_sigmas["left"]
+            num_sigmas_right = num_sigmas["right"]
+        upper =float( (num_sigmas_right *std)+mean)
+        lower = float((-num_sigmas_left *std)+mean)
+        output_dict.update({pars : {'Mean Value': mean, 'Sigmas Cut': num_sigmas, 'Upper Boundary' : upper, 'Lower Boundary': lower}})
+    return output_dict
+    
 def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}, overwrite=False):
     
     """
     Finds double sided cut boundaries for a file for the parameters specified 
-
-
     Parameters
     ----------
-
     file_path : str
                 path to data file
-
     cut_file : str
                 path to json file of cuts will save cuts in the form:
                 {detector-source-run : {parameter : {Mean_value : mean_value, Sigmas cut : sigmas, 
                                                      Upper Boundary : value, Lower Boundary : value}}
-
     lh5_group : str
                 lh5_path (e.g. 'raw')
-
     parameters : dict
                  dictionary with the parameter to be cut and the number of sigmas to cut at
-
     overwrite : bool
                 True to overwrite existing cuts in json file
-
     """
 
 
@@ -41,60 +67,43 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
 
     else:
         cut_dict = {}
-
-
-    output_dict = {}
-
     base=os.path.basename(file_path)
 
     file_name = os.path.splitext(base)[0]
-    parts = file_name.split('-')
-    run = parts[0]+'-'+parts[1]+'-'+parts[2]+'-'+parts[3]  #Probably a nicer way to do this
+    datatype, detector, measurement, run, timestamp = file_name.split('-')
+    det_run = datatype+'-'+detector+'-'+measurement+'-'+run
 
-    if run in cut_dict and overwrite == False:
+    if det_run in cut_dict and overwrite == False:
         print('Cut Parameters already Calculated and Overwrite is False')
         return
-    elif run in cut_dict and overwrite == True:
-        cut_dict.pop(run)
-    all_pars_array = lh5.load_nda(file_path, parameters,  lh5_group)
-    for pars in parameters.keys():
-        num_sigmas = parameters[pars]
-        par_array = all_pars_array[pars]
-        counts, bins, var = hist.get_hist(par_array,10**5)
-        bin_centres = hist.get_bin_centers(bins)
-        fwhm = hist.get_fwhm(counts, bins)[0]
-        mean = float(bin_centres[np.argmax(counts)])
-        std = fwhm/2.355
-        upper =float( (num_sigmas*std)+mean)
-        lower = float((-num_sigmas*std)+mean)
-        output_dict.update({pars : {'Mean Value': mean, 'Sigmas Cut': num_sigmas, 'Upper Boundary' : upper, 'Lower Boundary': lower}})
 
-    cut_dict.update({run:output_dict})
+    all_pars_array = lh5.load_nda(file_path, parameters.keys(),  lh5_group)
+    output_dict = generate_cuts(all_pars_array, parameters)
+    cut_dict[det_run] = output_dict
     with open(cut_file,'w') as fp:
         json.dump(cut_dict,fp, indent=4)
     return
 
-def get_cut_indexes(file, cut_dict, lh5_group, verbose):
+
+def get_cut_indexes(all_data, cut_dict, verbose=False):
 
     """
     Returns a mask of the data, for a single file, that passes cuts based on dictionary of cuts 
     in form of cut boundaries above
-
     Parameters
     ----------
-    File : str 
-           File path
+    File : dict or lh5_table
+           dictionary of parameters + array such as load_nda or lh5 table of params
     Cut_dict : string
                 Dictionary file with cuts
-    lh5_group : string
-                lh5 file path e.g. 'raw'
     """
     
     indexes = None
     keys = cut_dict.keys()
-    all_cut_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
     for cut in keys:
-        data = all_cut_data[cut]
+        data = all_data[cut]
+        if not isinstance(data, np.ndarray):
+            data = data.nda
         upper = cut_dict[cut]['Upper Boundary']
         lower = cut_dict[cut]['Lower Boundary']
         idxs = (data<upper) & (data>lower) 
@@ -103,10 +112,11 @@ def get_cut_indexes(file, cut_dict, lh5_group, verbose):
             
         else:
             indexes = idxs
+        if verbose: print(cut, ' loaded')
 
     return indexes
 
-def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
+def load_df_with_cuts(files, cut_file, lh5_group, verbose=True):
 
     """
     This function loads data after applying cuts specified in cut_file
@@ -116,87 +126,109 @@ def load_df_with_cuts(files, cut_file_path, lh5_group, verbose=True):
     Files : str or list of str's
              A list of files. Can contain wildcards
     
-    Cut_file_path : string
-                    Path to json dictionary file with cuts
+    cut_file : string, dict
+                    Path to json dictionary file with cuts or dictionary of cuts such as output of generate cuts
+                    in form {"char_data-detector-measurement-run" : cut_dict}
     
     lh5_group : string
                 lh5 file path e.g. 'raw'
     
     """
 
+    sto = lh5.Store()
     if isinstance(files, str): files = [files]
     # Expand wildcards
     files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
 
-    sto = lh5.Store()
-    if os.path.isfile(cut_file_path) == False:
-        get_cut_boundaries(files[0], cut_file_path, lh5_group)
-    with open(cut_file_path,'r') as f:
-            full_cut_dict = json.load(f)
-    #get first file name
+    if cut_file is None:
+        data = lh5.load_nda(files[0], cut_parameters.keys(), lh5_group)
+        cut_dict = generate_cuts(data, cut_parameters)
+        print(cut_dict)
+        idxs = []
+        for file in files:
+            base=os.path.basename(files[0])
+            file_name = os.path.splitext(base)[0]
+            datatype, detector, measurement, run, timestamp = file_name.split('-')
+            det_run = datatype+'-'+detector+'-'+measurement+'-'+run
+            if det_run != run1:
+                print ("Files not all in same run")
+                run1 = det_run
+                data = lh5.load_nda(files, cut_parameters.keys(), lh5_group)
+                cut_dict = generate_cuts(data, cut_parameters)
+                print(cut_dict)
+            keys = cut_dict.keys()
+            par_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
+            idx = get_cut_indexes(par_data, cut_dict, verbose)
+            idxs.append(idx)
 
-    base=os.path.basename(files[0])
-    file_name = os.path.splitext(base)[0]
-    parts = file_name.split('-')
-    run1 = parts[0]+'-'+parts[1]+'-'+parts[2]+'-'+parts[3]
-    
-    try:
-        cut_dict = full_cut_dict[run1]
-        if verbose:
-            print('Loaded Cut Dictionary')
-    except KeyError:
-        print("Cuts haven't been calculated yet, getting cut boundaries")
-        get_cut_boundaries(files[0], cut_file_path, lh5_group)
-        with open(cut_file_path,'r') as f:
+    else:
+        if os.path.isfile(cut_file) == False:
+            get_cut_boundaries(files[0], cut_file, lh5_group, parameters= cut_parameters)
+        with open(cut_file,'r') as f:
             full_cut_dict = json.load(f)
-        cut_dict = full_cut_dict[run1]
-    idxs = []
-    for file in files:
-        if verbose:
+        try:
+            cut_dict = full_cut_dict[run1]
+            if verbose:
+                print('Loaded Cut Dictionary')
+        except KeyError:
+            print("Cuts haven't been calculated yet, getting cut boundaries")
+            get_cut_boundaries(files[0], cut_file, lh5_group, cut_parameters)
+            with open(cut_file,'r') as f:
+                full_cut_dict = json.load(f)
+                cut_dict = full_cut_dict[run1]
+
+        idxs = []
+        for file in files:
+            if verbose:
                 print("loading data for", file)
 
-        base=os.path.basename(file)
-        file_name = os.path.splitext(base)[0]
-        parts = file_name.split('-')
-        run = parts[0]+'-'+parts[1]+'-'+parts[2]+'-'+parts[3]
+            base=os.path.basename(files[0])
+            file_name = os.path.splitext(base)[0]
+            datatype, detector, measurement, run, timestamp = file_name.split('-')
+            det_run = datatype+'-'+detector+'-'+measurement+'-'+run
+            if det_run != run1:
+                print ("Files not all in same run")
+                run1 = det_run
+                try:
+                    cut_dict = full_cut_dict[run1]
+                except KeyError:
+                    print("Cuts haven't been calculated yet, getting cut boundaries")
+                    get_cut_boundaries(files[0], cut_file, lh5_group, cut_parameters)
+                    with open(cut_file,'r') as f:
+                        full_cut_dict = json.load(f)
+                        cut_dict = full_cut_dict[run1]
+            keys = cut_dict.keys()
+            par_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
+            idx = get_cut_indexes(par_data, cut_dict, verbose)
+            idxs.append(idx)
 
-        if run != run1:
-            print ("Files not all in same run")
-            run1 = run
-            try:
-                cut_dict = full_cut_dict[run1]
-            except KeyError:
-                print("Cuts haven't been calculated yet, getting cut boundaries")
-                get_cut_boundaries(file, cut_file_path, lh5_group)
-                with open(cut_file,'r') as f:
-                    full_cut_dict = json.load(f)
-                cut_dict = full_cut_dict[run1]
-        
-        idx = get_cut_indexes(file, cut_dict, lh5_group, verbose)
-        idxs.append(idx)
     mask = np.concatenate(idxs)
     
+    print(len(np.where(mask)[0])/ len(mask) *100, "% passed cuts")
     tb = sto.read_object(lh5_group, files)[0]
     data = lh5.Table.get_dataframe(tb)
         
     cut_data = data.iloc[mask]
+    failed_cuts = data.iloc[~mask]
 
     cut_data.reset_index(inplace= True)
-    return cut_data
+    failed_cuts.reset_index(inplace= True)
+    return cut_data, failed_cuts
 
 
 
-def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True):
+def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_parameters= {'bl_mean':4,'bl_std':4, 'pz_std':4}, verbose=True):
 
     """
 
-    This function loads data after applying cuts specified in cut_file
-
+    This function loads data after applying cuts, by default it will simply load the data according to the default cut parameters. 
+    You can specify these cut parameters with a dictionary. If you supply a cut file json it will load and save the cuts to this 
+    file in the form of get_cut_boundaries
     Parameters
     ----------
     files : List
             list of file paths
-    cut_file_path : string
+    cut_file : string
                     Path to json dictionary file with cuts
     lh5_group : string
                 lh5 file path e.g. 'raw/'
@@ -205,63 +237,88 @@ def load_nda_with_cuts(files, cut_file_path, lh5_group, parameters, verbose=True
     
     """
 
-
-    
     sto = lh5.Store()
 
     if isinstance(files, str): files = [files]
+    if isinstance(parameters, str): parameters = [parameters]
     # Expand wildcards
     files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
 
-    if os.path.isfile(cut_file_path) == False:
-        get_cut_boundaries(files[0], cut_file_path, lh5_group)
-    with open(cut_file_path,'r') as f:
-            full_cut_dict = json.load(f)
-
-    #get first file name
-
     base=os.path.basename(files[0])
     file_name = os.path.splitext(base)[0]
-    parts = file_name.split('-')
-    run1 = parts[0]+'-'+parts[1]+'-'+parts[2]+'-'+parts[3]
-    
-    try:
-        cut_dict = full_cut_dict[run1]
-        if verbose:
-            print('Loaded Cut Dictionary')
-    except KeyError:
-        print("Cuts haven't been calculated yet, getting cut boundaries")
-        get_cut_boundaries(files[0], cut_file_path, lh5_group)
-        with open(cut_file_path,'r') as f:
+    datatype, detector, measurement, run, timestamp = file_name.split('-')
+    run1 = datatype+'-'+detector+'-'+measurement+'-'+run
+
+    if cut_file is None:
+        data = lh5.load_nda(files[0], cut_parameters.keys(), lh5_group)
+        cut_dict = generate_cuts(data, cut_parameters)
+        print(cut_dict)
+        idxs = []
+        for file in files:
+            base=os.path.basename(file)
+            file_name = os.path.splitext(base)[0]
+            datatype, detector, measurement, run, timestamp = file_name.split('-')
+            det_run = datatype+'-'+detector+'-'+measurement+'-'+run
+            if det_run != run1:
+                run1 = det_run
+                print ("Files not all in same run")
+                data = lh5.load_nda(files, cut_parameters.keys(), lh5_group)
+                cut_dict = generate_cuts(data, cut_parameters)
+                print(cut_dict)
+            keys = cut_dict.keys()
+            par_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
+            idx = get_cut_indexes(par_data, cut_dict, verbose)
+            idxs.append(idx)
+
+    else:
+        if os.path.isfile(cut_file) == False:
+            get_cut_boundaries(files[0], cut_file, lh5_group, parameters= cut_parameters)
+        with open(cut_file,'r') as f:
             full_cut_dict = json.load(f)
-        cut_dict = full_cut_dict[run1]
-    if (set(parameters) & set(cut_dict.keys())):
-        raise KeyError("Input Parameters must be different to cut parameters otherwise use load_df_with_cuts")
-    idxs = []
-    for file in files:
-
-        base=os.path.basename(file)
-        file_name = os.path.splitext(base)[0]
-        parts = file_name.split('-')
-        run = parts[0]+'-'+parts[1]+'-'+parts[2]+'-'+parts[3]
-
-        if run != run1:
-            print ("Files not all in same run")
-            run1 = run
-            try:
+        try:
+            cut_dict = full_cut_dict[run1]
+            if verbose:
+                print('Loaded Cut Dictionary')
+        except KeyError:
+            print("Cuts haven't been calculated yet, getting cut boundaries")
+            get_cut_boundaries(files[0], cut_file, lh5_group, cut_parameters)
+            with open(cut_file,'r') as f:
+                full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
-            except KeyError:
-                print("Cuts haven't been calculated yet, getting cut boundaries")
-                get_cut_boundaries(file, cut_file_path, lh5_group)
-                with open(cut_file_path,'r') as f:
-                    full_cut_dict = json.load(f)
-                cut_dict = full_cut_dict[run1]
-        idx = get_cut_indexes(file, cut_dict, lh5_group, verbose)
-        idxs.append(idx)
+
+        idxs = []
+        for file in files:
+            if verbose:
+                print("loading data for", file)
+
+            base=os.path.basename(files[0])
+            file_name = os.path.splitext(base)[0]
+            datatype, detector, measurement, run, timestamp = file_name.split('-')
+            det_run = datatype+'-'+detector+'-'+measurement+'-'+run
+            if det_run != run1:
+                print ("Files not all in same run")
+                run1 = det_run
+                try:
+                    cut_dict = full_cut_dict[run1]
+                except KeyError:
+                    print("Cuts haven't been calculated yet, getting cut boundaries")
+                    get_cut_boundaries(files[0], cut_file, lh5_group, cut_parameters)
+                    with open(cut_file,'r') as f:
+                        full_cut_dict = json.load(f)
+                        cut_dict = full_cut_dict[run1]
+            keys = cut_dict.keys()
+            par_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
+            idx = get_cut_indexes(par_data, cut_dict, verbose)
+            idxs.append(idx)
+    
     mask = np.concatenate(idxs)
+    print(len(np.where(mask)[0])/ len(mask) *100, "% passed cuts")
     #Concat dataframes together and return
     par_data = lh5.load_nda(files, parameters, lh5_group, verbose=verbose)
+    failed_cuts={}
+    passed_cuts={}
     for par in par_data:
-        par_data[par] = par_data[par][mask]
-    return par_data
+        passed_cuts[par] = par_data[par][mask]
+        failed_cuts[par] = par_data[par][~mask]
+    return passed_cuts, failed_cuts
 
