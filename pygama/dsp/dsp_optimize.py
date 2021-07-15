@@ -4,7 +4,7 @@ from collections import namedtuple
 from pprint import pprint
 
 
-def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0, **fom_kwargs):
+def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0, fom_kwargs=None):
     """
     run one iteration of DSP on tb_data 
 
@@ -43,7 +43,7 @@ def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=
     pc.execute()
     if fom_function is not None: 
         if fom_kwargs is not None:
-            return fom_function(tb_out, verbosity, **fom_kwargs)
+            return fom_function(tb_out, verbosity, fom_kwargs)
         else: 
             return fom_function(tb_out, verbosity)
     else: return tb_out
@@ -116,8 +116,8 @@ class ParGrid():
     def print_data(self, indices):
         print(f"Grid point at indices {indices}:")
         for i_dim, i_par in enumerate(indices):
-            name, parameter, value_str, _, _ = self.get_data(i_dim, i_par)
-            print(f"{name}[{parameter}] = {value_str}")
+            name, parameter, value_str = self.get_data(i_dim, i_par)
+            print(f"{name}.{parameter} = {value_str}")
 
     def set_dsp_pars(self, db_dict, indices):        
         if db_dict is None:
@@ -169,7 +169,7 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1,
         of the grid argument
     """
 
-    grid_values = np.ndarray(shape=grid.get_shape())
+    grid_values = np.ndarray(shape=grid.get_shape(), dtype='O')
     iii = grid.get_zero_indices()
     if verbosity > 0: print("starting grid calculations...")
     while True:
@@ -180,7 +180,7 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1,
                                               dsp_config,
                                               db_dict=db_dict,
                                               fom_function=fom_function,
-                                              verbosity=verbosity, **fom_kwargs)
+                                              verbosity=verbosity, fom_kwargs=fom_kwargs)
         if verbosity > 0: print("value:", grid_values[tuple(iii)])
         if not grid.iterate_indices(iii): break
     return grid_values
