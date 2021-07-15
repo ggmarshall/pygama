@@ -252,6 +252,27 @@ when a key is missing, return the string value of that key.</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="pygama.utils.fit_simple_scaling">
+<span class="sig-prename descclassname"><span class="pre">pygama.utils.</span></span><span class="sig-name descname"><span class="pre">fit_simple_scaling</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/utils.html#fit_simple_scaling"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.utils.fit_simple_scaling" title="Permalink to this definition">¶</a></dt>
+<dd><p>Fast computation of weighted linear least squares fit to a simple scaling
+I.e. y = scale * x. Returns the best fit scale parameter and its variance.
+:param x: x values for the fit
+:type x: array like
+:param y: y values for the fit
+:type y: array like
+:param var: The variances for each y-value
+:type var: array like (optional)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><strong>scale, scale_var</strong> -- The scale parameter and its variance</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>tuple (float, float)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="pygama.utils.get_dataset_from_cmdline">
 <span class="sig-prename descclassname"><span class="pre">pygama.utils.</span></span><span class="sig-name descname"><span class="pre">get_dataset_from_cmdline</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">run_db</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cal_db</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/utils.html#get_dataset_from_cmdline"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.utils.get_dataset_from_cmdline" title="Permalink to this definition">¶</a></dt>
 <dd><dl class="simple">
