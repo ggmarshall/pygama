@@ -3,13 +3,13 @@
         "rise": {
             "start": 1,
             "end": 16,
-            "frequency": 11,
+            "frequency": 31,
             "unit": "us"
         },
         "flat": {
             "start": 1,
             "end": 6,
-            "frequency": 11,
+            "frequency": 21,
             "unit": "us"
         }
     }
