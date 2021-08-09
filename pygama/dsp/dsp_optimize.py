@@ -2,9 +2,10 @@ import numpy as np
 from .build_processing_chain import build_processing_chain
 from collections import namedtuple
 from pprint import pprint
+import multiprocessing as mp
 
 
-def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0, **fom_kwargs):
+def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0, fom_kwargs=None):
     """
     run one iteration of DSP on tb_data 
 
@@ -43,32 +44,27 @@ def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=
     pc.execute()
     if fom_function is not None: 
         if fom_kwargs is not None:
-            return fom_function(tb_out, verbosity, **fom_kwargs)
+            return fom_function(tb_out, verbosity, fom_kwargs)
         else: 
             return fom_function(tb_out, verbosity)
     else: return tb_out
 
 
-ParGridDimension = namedtuple('ParGridDimension', 'name arg_type i_arg value_strs companions')
+ParGridDimension = namedtuple('ParGridDimension', 'name parameter value_strs ')
 
 class ParGrid():
     """ Parameter Grid class
-
     Each ParGrid entry corresponds to a dsp parameter to be varied.
     The ntuples must follow the pattern: 
-    ( name, arg_type, i_arg, value_strs companions) : ( str, str default:'args',int, list of str, list or None )
-    where name is the name of the dsp routine in dsp_config whose  be
-    optimized, arg_type is the type to be varied by default 'args' but in some cases 'init_args' may be wanted
-    i_arg is the index of the argument to be varied, value_strs is
-    the array of strings to set the argument to, and companions is an optional
-    list of ( name, arg_type, i_arg, value_strs ) tuples for companion arguments that
-    need to change along with this one
+    ( name parameter value_strs) : ( str, str, list of str)
+    where name and parameter are the same as 'db.name.parameter' in the processing chain,
+    value_strs is the array of strings to set the argument to.
     """
     def __init__(self):
         self.dims = []
 
-    def add_dimension(self, name, i_arg, value_strs, companions = None, arg_type='args'):
-        self.dims.append( ParGridDimension(name, arg_type, i_arg, value_strs, companions) )
+    def add_dimension(self, name, parameter, value_strs):
+        self.dims.append( ParGridDimension(name, parameter, value_strs) )
 
     def get_n_dimensions(self):
         return len(self.dims)
@@ -87,10 +83,8 @@ class ParGrid():
 
     def get_par_meshgrid(self, copy=False, sparse=False):
         """ return a meshgrid of parameter values
-
         Always uses Matrix indexing (natural for par grid) so that
         mg[i1][i2][...] corresponds to index order in self.dims
-
         Note copy is False by default as opposed to numpy default of True
         """     
         axes = []
@@ -103,11 +97,9 @@ class ParGrid():
 
     def iterate_indices(self, indices):
         """ iterate given indices [i1, i2, ...] by one.
-
         For easier iteration. The convention here is arbitrary, but its the
         order the arrays would be traversed in a series of nested for loops in
         the order appearin in dims (first dimension is first for loop, etc):
-
         Return False when the grid runs out of indices. Otherwise returns True.
         """
         for iD in reversed(range(self.get_n_dimensions())):
@@ -116,38 +108,43 @@ class ParGrid():
             indices[iD] = 0
         return False
 
+    def check_indices(self, indices):
+        for iD in reversed(range(self.get_n_dimensions())):
+            if indices[iD] < self.get_n_points_of_dim(iD): return True
+            indices[iD] = 0
+        return False
+
     def get_data(self, i_dim, i_par):
         name = self.dims[i_dim].name
-        arg_type = self.dims[i_dim].arg_type
-        i_arg = self.dims[i_dim].i_arg
+        parameter = self.dims[i_dim].parameter
         value_str = self.dims[i_dim].value_strs[i_par]
-        companions = self.dims[i_dim].companions
-        return name, arg_type, i_arg, value_str, companions
+        return name, parameter, value_str
 
     def print_data(self, indices):
         print(f"Grid point at indices {indices}:")
         for i_dim, i_par in enumerate(indices):
-            name, arg_type, i_arg, value_str, _, _ = self.get_data(i_dim, i_par)
-            print(f"{name}[{i_arg}] = {value_str}")
+            name, parameter, value_str = self.get_data(i_dim, i_par)
+            print(f"{name}.{parameter} = {value_str}")
 
-    def set_dsp_pars(self, dsp_config, indices):
+    def set_dsp_pars(self, db_dict, indices):        
+        if db_dict is None:
+            db_dict = {}          
         for i_dim, i_par in enumerate(indices):
-            name, arg_type, i_arg, value_str, companions = self.get_data(i_dim, i_par)
-            dsp_config['processors'][name][arg_type][i_arg] = value_str
-            if companions is None: continue
-            for ( c_name, c_arg_type, c_i_arg, c_value_str ) in companions:
-                dsp_config['processors'][c_name][c_arg_type][c_i_arg] = c_value_str[i_par]
+            name, parameter, value_str= self.get_data(i_dim, i_par)
+            if name not in db_dict.keys():
+                db_dict[name] = {parameter:value_str}
+            else:
+                db_dict[name][parameter] = value_str        
+        return db_dict
 
-def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0, **fom_kwargs):
+
+def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1, **fom_kwargs):
     """Extract a table of optimization values for a grid of DSP parameters 
-
     The grid argument defines a list of parameters and values over which to run
     the DSP defined in dsp_config on tb_data. At each point, a scalar
     figure-of-merit is extracted
-
     Returns a N-dimensional ndarray of figure-of-merit values, where the array
     axes are in the order they appear in grid.
-
     Parameters:
     -----------
     tb_data : lh5 Table
@@ -167,8 +164,10 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0,
         DSP parameters database. See build_processing_chain for formatting info
     verbosity : int (optional)
         verbosity for the processing chain and fom_function calls
+
     **fom_kwargs : 
         Any keyword arguments for fom_function
+
 
     Returns:
     --------
@@ -177,20 +176,95 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=0,
         of the grid argument
     """
 
-    grid_values = np.ndarray(shape=grid.get_shape())
+    grid_values = np.ndarray(shape=grid.get_shape(), dtype='O')
     iii = grid.get_zero_indices()
     if verbosity > 0: print("starting grid calculations...")
     while True:
-        grid.set_dsp_pars(dsp_config, iii)
+        db_dict = grid.set_dsp_pars(db_dict, iii)
         if verbosity > 1: pprint(dsp_config)
         if verbosity > 0: grid.print_data(iii)
         grid_values[tuple(iii)] = run_one_dsp(tb_data,
                                               dsp_config,
                                               db_dict=db_dict,
                                               fom_function=fom_function,
-                                              verbosity=verbosity,
-                                              **fom_kwargs)
+                                              verbosity=verbosity, fom_kwargs=fom_kwargs)
         if verbosity > 0: print("value:", grid_values[tuple(iii)])
         if not grid.iterate_indices(iii): break
     return grid_values
 
+def run_multi_grid(tb_data, dsp_config, grids, fom_function, db_dict=None, verbosity=1, **fom_kwargs):
+    shape=grids[0].get_shape()
+    grid_values = np.ndarray(shape = len(grids), dtype='O')
+    iii = grid.get_zero_indices()
+    if verbosity > 0: print("starting grid calculations...")
+    while True:
+        for grid in grids:
+            db_dict = grid.set_dsp_pars(db_dict, iii)
+        if verbosity > 1: pprint(db_dict)
+        if verbosity > 0: [grid.print_data(iii) for grid in grids] 
+        tb_out = run_one_dsp(tb_data, dsp_config,db_dict=db_dict)
+        for i,grid in enumerate(grids):
+            if isinstance(fom_function, list):
+                grid_value[i][iii] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
+            else: 
+                grid_value[i][iii] = fom_function(tb_out, verbosity, fom_kwargs[i])
+
+        if verbosity > 0: print("value:", grid_values[tuple(iii)])
+        if not grid.iterate_indices(iii): break
+    return grid_values
+
+def run_grid_point(tb_data, dsp_config, grids, fom_function, iii, db_dict=None, verbosity=1, fom_kwargs=None):
+        if isinstance(grids, list):
+            for grid in grids:
+                db_dict = grid.set_dsp_pars(db_dict, iii)
+        else:
+            db_dict = grid.set_dsp_pars(db_dict, iii)
+        if verbosity > 1: pprint(dsp_config)
+        if verbosity > 0: grid.print_data(iii)
+        result = run_one_dsp(tb_data,
+                             dsp_config,
+                             db_dict=db_dict,
+                             verbosity=verbosity)
+        if verbosity > 0: print("value:", result)
+        return result
+
+def get_grid_points(grid):
+    out = []
+    iii = grid[0].get_zero_indices()
+    while True:
+        print("value:", tuple(iii))
+        out.append(tuple(iii))
+        if not grid[0].iterate_indices(iii): break
+        grid_check=[]
+        for gri in grid:
+            grid_check.append(gri.check_indices(iii))
+        if not any(grid_check): break
+    return out
+
+def run_grid_multiprocess_parallel(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1, 
+                          processes=5, fom_kwargs=None):
+    if not isinstance(grid, list):
+        grid = [grid]
+    if not isinstance(fom_function, list):
+        fom_function = [fom_function]
+    if not isinstance(fom_kwargs, list):
+        fom_kwargs = [fom_kwargs]
+    grid_values = []
+    shape = grid[0].get_shape()
+    for i in range(len(grid)):
+        grid_values.append(np.ndarray(shape = shape, dtype='O'))
+    grid_list = get_grid_points(grid)
+    
+    pool = mp.Pool(processes)
+    for gl in grid_list:
+        result = pool.apply_async(run_grid_point, args=(tb_data,dsp_config, grid,None, np.asarray(gl, dtype=np.uint32),
+                                                        db_dict, verbosity))
+        tb_out = result.get()
+        for i in range(len(grid)):
+            tb_out = result.get()
+            if fom_kwargs:
+                grid_values[i][gl] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
+            else:
+                grid_values[i][gl] = fom_function[i](tb_out, verbosity)
+    pool.close()
+    return grid_values

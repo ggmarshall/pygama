@@ -56,12 +56,13 @@ def cusp_filter(length, sigma, flat, decay):
         raise DSPFatal('decay out of range, must be >= 0')
 
     lt = int((length-flat)/2)
+    flat_ind = int(flat)
     cusp = np.zeros(length)
     for ind in range(lt):
         cusp[ind] = float(math.sinh(ind/sigma)/math.sinh(lt/sigma))
-    for ind in range(lt, lt+flat+1, 1):
+    for ind in range(lt, lt+flat_ind+1, 1):
         cusp[ind] = 1
-    for ind in range(lt+flat+1, length,1):
+    for ind in range(lt+flat_ind+1, length,1):
         cusp[ind] = float(math.sinh((length-ind)/sigma)/math.sinh(lt/sigma))
 
 
@@ -135,15 +136,16 @@ def zac_filter(length, sigma, flat, decay):
         raise DSPFatal('decay out of range, must be >= 0')
 
     lt = int((length-flat)/2)
+    flat_ind = int(flat)
     # calculate cusp filter and negative parables
     cusp = np.zeros(length)
     par = np.zeros(length)
     for ind in range(lt):
         cusp[ind] = float(math.sinh(ind/sigma)/math.sinh(lt/sigma))
         par[ind] = pow(ind-lt/2,2)-pow(lt/2,2)
-    for ind in range(lt, lt+flat+1, 1):
+    for ind in range(lt, lt+flat_ind+1, 1):
         cusp[ind] = 1
-    for ind in range(lt+flat+1, length,1):
+    for ind in range(lt+flat_ind+1, length,1):
         cusp[ind] = float(math.sinh((length-ind)/sigma)/math.sinh(lt/sigma))
         par[ind] = pow(length-ind-lt/2,2)-pow(lt/2,2)
 

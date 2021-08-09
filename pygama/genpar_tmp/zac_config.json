@@ -1,6 +1,6 @@
 {
-    "etrap": {
-        "rise": {
+    "zac": {
+        "sigma": {
             "start": 1,
             "end": 16,
             "frequency": 31,

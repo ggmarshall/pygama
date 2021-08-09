@@ -1,12 +1,12 @@
 {
-    "wf_zac": {
-        "1": {
+    "zac": {
+        "sigma": {
             "start": 1,
             "end": 7,
             "frequency": 3,
             "unit": "*us"
         },
-        "2": {
+        "flat": {
             "start": 2,
             "end": 8,
             "frequency": 4,
