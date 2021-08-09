@@ -35,7 +35,7 @@ def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, **fom_
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     return opt.run_grid(tb_data,dsp_config,grid, fom, db_dict, verbosity=0, **fom_kwargs)
 
-def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_dict=None, processes=5, verbosity=1, **fom_kwargs):
+def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_dict=None, processes=5, verbosity=0, **fom_kwargs):
     """
     Runs optimisation on .lh5 file
     
@@ -52,10 +52,27 @@ def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_di
         fom_function must return a scalar figure-of-merit value upon which the
         optimization will be based. Should accept verbosity as a second argument    
     """
+    def form_dict(in_dict, length):
+        keys = list(in_dict.keys())
+        out_list =[]
+        for i in range(length):
+            out_list.append({keys[0]:0}) 
+        for key in keys:
+            if isinstance(in_dict[key],list):
+                if len(in_dict[key]) == length:
+                    for i in range(length):
+                        out_list[i][key] = in_dict[key][i]
+            else:
+                for i in range(length):
+                    out_list[i][key] = in_dict[key]
+        return out_list  
+
     if 'fom_kwargs' in fom_kwargs:
         fom_kwargs = fom_kwargs['fom_kwargs']
+    
     if not isinstance(opt_config, list):
         opt_config = [opt_config]
+    fom_kwargs = form_dict(fom_kwargs, len(opt_config))
     grid = []
     for i,opt_conf in enumerate(opt_config):
         grid.append(set_par_space(opt_conf)) 
@@ -116,7 +133,7 @@ def fit_peak_func(energies, peak, kev_width, func_i= pgf.gauss_step):
     lower_bound = (np.nanmin(energies)//bin_width) * bin_width
     upper_bound = ((np.nanmax(energies)//bin_width)+1) * bin_width
     hist, bins, var = pgh.get_hist(energies, dx = bin_width, range = (lower_bound,upper_bound))  
-    mu = bins[np.argmax(hist)]
+    mu = bins[np.nanargmax(hist)]
     adc_to_kev = mu/peak
     # Making the window slightly smaller removes effects where as mu moves edge can be outside bin width
     lower_bound = mu - (kev_width[0] -2)* adc_to_kev 
@@ -133,7 +150,7 @@ def fit_peak_func(energies, peak, kev_width, func_i= pgf.gauss_step):
     return hist, bins, pars_i, cov_i
 
 def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=False):
-    correction = np.multiply(np.multiply(alpha,dt),Energies, dtype='float64')
+    correction = np.multiply(np.multiply(alpha,dt, dtype='float64'),Energies, dtype='float64')
     ct_energy = np.add(correction, Energies)
     
     if func == radford_peak:
@@ -141,17 +158,17 @@ def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=Fa
             hist, bins, params, covs = fit_peak_func(ct_energy, func_i= func, peak=peak, kev_width=kev_width)
             fwhm, fwhm_err = pgf.get_fwhm_func(func, params,covs)
             if kev==True:
-                fwhm = fwhm * (peak/params[0])
-                fwhm_err = fwhm_err * (peak/params[0])
+                fwhm *= (peak/params[0])
+                fwhm_err *= (peak/params[0])
         
             try:
                 hist2, bins2, params2, covs2 = fit_peak_func(ct_energy, func_i= pgf.gauss_step, peak=peak, kev_width=kev_width)
                 fwhm2, fwhm2_err = pgf.get_fwhm_func(pgf.gauss_step, params2, covs2)
                 if kev==True:
-                    fwhm2 = fwhm2 * (peak/params2[1])
-                    fwhm2_err = fwhm2_err * (peak/params2[1])
+                    fwhm2 *= (peak/params2[1])
+                    fwhm2_err *= (peak/params2[1])
                 if np.isnan(fwhm) and np.isnan(fwhm2):
-                    return np.nan, np.nan
+                    return np.nan, np.nan, np.nan
                 elif np.isnan(fwhm) and not np.isnan(fwhm2):
                     fwhm = fwhm2
                     fwhm_err = fwhm2_err
@@ -180,8 +197,8 @@ def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=Fa
             hist, bins, params, covs = fit_peak_func(ct_energy, func_i= func, peak=peak, kev_width=kev_width)
             fwhm, fwhm_err = pgf.get_fwhm_func(func, params,covs)
             if kev==True:
-                fwhm = fwhm * (peak/params[1])
-                fwhm_err = fwhm_err * (peak/params[1])
+                fwhm *= (peak/params[1])
+                fwhm_err *= (peak/params[1])
             fit = gauss_step(bins, *params)
             
         except:
@@ -201,7 +218,7 @@ def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter):
     peak = kwarg_dict['peak']
     kev_width = kwarg_dict['kev_width']
     max_alpha = 3*10**-6
-    astep= 0.625*10**-7
+    astep= 10**-7
     if ctc_parameter == 'QDrift':
         dt = tb_in['dt_eff'].nda 
     elif ctc_parameter == 'dt':
@@ -329,12 +346,11 @@ def fwhm_slope(x, m0, m1, m2):
     """
     return np.sqrt(m0 + m1*x +(m2*(x**2)))
 
-def load_grids(det, filter_name):
-    data_path = os.path.join(initial_data_path, det, filter_name)
+def load_grids(file_path, filter_name):
+    data_path = os.path.join(file_path, filter_name)
     peak_files = os.listdir(data_path)
     peak_files.sort(key =key)
     peak_energies = np.array([peak.split('.p')[0] for peak in peak_files], dtype='float32')
-    print(peak_energies)
     peak_grids = []
     for peak in peak_files:
         full_data_path = os.path.join(data_path, peak)
@@ -343,28 +359,18 @@ def load_grids(det, filter_name):
         peak_grids.append(grid)
     return peak_grids, peak_energies
 
-def load_config(filter_name):
+def load_config(path, filter_name):
     if filter_name =='Cusp':
-        opt_config = '/lfs/l1/legend/legend-prodenv/prod-usr/ggmarsh-test-v02/src/python/pygama/pygama/genpar_tmp/cusp_config.json'
+        opt_config = os.path.join(path, 'cusp_config.json')
     elif filter_name =='Zac':
-        opt_config = '/lfs/l1/legend/legend-prodenv/prod-usr/ggmarsh-test-v02/src/python/pygama/pygama/genpar_tmp/zac_config.json'
+        opt_config = os.path.join(path, 'zac_config.json')
     elif filter_name =='Trap':
-        opt_config = '/lfs/l1/legend/legend-prodenv/prod-usr/ggmarsh-test-v02/src/python/pygama/pygama/genpar_tmp/trap_config.json'
+        opt_config = os.path.join(path, 'etrap_config.json')
+    elif filter_name =='TTrap':
+        opt_config = os.path.join(path, 'ttrap_config.json')
     with open(opt_config, 'r') as o:
         opt_dict = json.load(o)
-    opt_name = filter_name.lower()
-    if opt_name =='trap':
-        opt_name = 'etrap'
-    keys = list(opt_dict[opt_name].keys())
-    x_dict = opt_dict[opt_name][keys[1]]
-    xs=(np.arange(0,x_dict['frequency'],1),np.linspace(x_dict['start'],x_dict['end'],x_dict['frequency']))
-    y_dict = opt_dict[opt_name][keys[0]]
-    ys=(np.arange(0,y_dict['frequency'],1),np.linspace(y_dict['start'],y_dict['end'],y_dict['frequency']))
-    for i,x in enumerate(xs[1]):
-        xs[1][i] = round(x,1)
-    for i,y in enumerate(ys[1]):
-        ys[1][i] = round(y,1)
-    return xs, ys, keys, opt_dict
+    return opt_dict
 
 def get_ctc_grid(grids, ctc_param):
     error_grids = []
@@ -378,8 +384,12 @@ def get_ctc_grid(grids, ctc_param):
         for i in range(shape[0]):
             for j in range(shape[1]):
                 dt_grid[i,j]= grid[i,j][ctc_param]['fwhm']
-                alpha_grid[i,j]= grid[i,j][ctc_param]['alpha']
+                
                 error_grid[i,j]= grid[i,j][ctc_param]['fwhm_err']
+                try:
+                    alpha_grid[i,j]= grid[i,j][ctc_param]['alpha']
+                except:
+                    pass
         dt_grids.append(dt_grid)
         alpha_grids.append(alpha_grid)
         error_grids.append(error_grid)
@@ -412,31 +422,42 @@ def interpolate_energy(peak_energies, grids, error_grids, energy):
             out_grid_err[index] = np.nan
     return out_grid, out_grid_err
 
-def find_lowest_grid_point(grid, err_grid, opt_dict, filter_name):
-    opt_name = filter_name.lower()
-    if opt_name =='trap':
-        opt_name = 'etrap'
+def find_lowest_grid_point_save(grid, err_grid, opt_dict, filter_name):
+    opt_name = list(opt_dict.keys())[0]
     keys = list(opt_dict[opt_name].keys())
-    x_dict = opt_dict[opt_name][keys[0]]
-    xs=np.linspace(x_dict['start'],x_dict['end'],x_dict['frequency'])
-    y_dict = opt_dict[opt_name][keys[1]]
-    ys=np.linspace(y_dict['start'],y_dict['end'],y_dict['frequency'])
-    total_lengths = np.zeros((len(xs), len(ys)))
+    param_list = []
+    shape = []
+    db_dict={}
+    for key in keys:
+        param_dict = opt_dict[opt_name][key]
+        grid_axis=np.linspace(param_dict['start'],param_dict['end'],param_dict['frequency'])
+        param_list.append(grid_axis)
+        shape.append(len(grid_axis))
+       
+    total_lengths = np.zeros(shape)
     
-    for i in range(len(xs)):
-        for j in range(len(ys)):
-            total_lengths[i][j]= xs[i]+ys[j]
+    for index, x in np.ndenumerate(total_lengths):
+        for i,param in enumerate(param_list):
+            total_lengths[index]+= param[index[i]]
     min_val = np.nanmin(grid)
-    lowest_ixs = np.where(grid == min_val)
-    print('Minimum value is :', min_val, '+-', err_grid[lowest_ixs][0])
-    print(lowest_ixs)
-    if isinstance(lowest_ixs[0], np.int64):
-        print(keys[1],':',ys[lowest_ixs[1]], 'us',  keys[0],' : ',xs[lowest_ixs[0]],'us')
+    lowest_ixs = np.where((grid == min_val))
+    #print('Minimum value is :', min_val, '+-', err_grid[lowest_ixs][0])
+    fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
+    #print(lowest_ixs)
+    if len(lowest_ixs[0]) ==1:
+        for i,key in enumerate(keys):
+            #print(key, ':',param_list[i][lowest_ixs[i]][0], 'us')
+            if i ==0:
+                db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
+            else:
+                db_dict[opt_name][key] = f'{param_list[i][lowest_ixs[i]][0]}*us'
     else:
         shortest_length = np.argmin(total_lengths[lowest_ixs])
-        final_idxs = (lowest_ixs[0][shortest_length],lowest_ixs[1][shortest_length])
-        print(keys[1],':',ys[final_idxs[1]], 'us',  keys[0],' : ',xs[final_idxs[0]],'us')
-    return lowest_ixs, min_val, err_grid[lowest_ixs][0]
+        final_idxs = [lowest_ix[shortest_length] for lowest_ix in lowest_ixs]
+        for i,key in enumerate(keys):
+            #print(key, ':',param_list[i][final_idxs[i]], 'us')
+            db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
+    return lowest_ixs, fwhm_dict, db_dict
 
 def interpolate_grid(energies, grids, int_energy, deg):
     grid_no = len(grids)
@@ -455,3 +476,82 @@ def interpolate_grid(energies, grids, int_energy, deg):
             out_grid[index] = np.nan
     return out_grid
 
+def get_best_vals(peak_grids, param, opt_dict):
+
+    dt_grids, error_grids, alpha_grids = get_ctc_grid(peak_grids, param)
+    qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
+    qbb_alphas = interpolate_grid(peak_energies[1:], alpha_grids[1:], 2039.061, 1)
+    ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict, filter_name)
+    return qbb_alphas[ixs[0], ixs[1]][0], fwhm_dict, db_dict
+
+def get_filter_params(file_path, opt_path, det):
+    filter_names = ['Cusp', 'Zac', 'Trap']
+    full_db_dict = {}
+    full_fwhm_dict = {}
+    for name in filter_names:
+        opt_dict = load_config(opt_path, name)
+        peak_grids, peak_energies = load_grids(file_path, name)
+        ctc_params= list(peak_grids[0][0,0].keys())
+        ctc_dict = {}
+        for ctc_param in ctc_params:
+            if ctc_param == 'QDrift':
+                alpha, fwhm, db_dict = get_best_vals(peak_grids, ctc_param, opt_dict)
+                opt_name = list(opt_dict.keys())[0]
+                db_dict[opt_name].update({'alpha':alpha})
+            else:
+                _,fwhm,_ = get_best_vals(peak_grids, ctc_param, opt_dict)
+            ctc_dict[ctc_param] =fwhm
+        full_fwhm_dict[name] = ctc_dict
+        full_db_dict.update(db_dict)
+    return full_db_dict, full_fwhm_dict
+
+def get_best_vals_no_ctc(peak_grids, param, opt_dict):
+
+    dt_grids, error_grids, alpha_grids = get_ctc_grid(peak_grids, param)
+    qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
+    ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict, filter_name)
+    return  fwhm_dict, db_dict
+
+
+def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_width):
+    sto=lh5.Store()
+    raw_file = sorted(run_splitter(raw_files), key=len)[-1]
+    baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, n_rows=5*10**6)[0].nda
+    wf_max = sto.read_object('/raw/wf_max', raw_file,verbosity=0, n_rows=5*10**6)[0].nda
+    rough_energy = wf_max-baseline
+    # Get events around peak using raw file values
+    peak = peaks_keV[peak_idx]
+    guess_keV = 1/18
+    Euc_min = peaks_keV[0]/guess_keV * 0.6
+    Euc_max = peaks_keV[-1]/guess_keV * 1.1
+    dEuc = 1/guess_keV
+    hist, bins, var = pgh.get_hist(rough_energy, range=(Euc_min, Euc_max), dx=dEuc)
+    detected_peaks_locs, detected_peaks_keV, roughpars = pgc.hpge_find_E_peaks(hist, bins, var, peaks_keV)
+    peak_loc = detected_peaks_locs[peak_idx]
+    kev_width = kev_widths[peak_idx]
+    rough_adc_to_kev = roughpars[0]
+    e_lower_lim = peak_loc - (1.1*kev_width[0])/rough_adc_to_kev
+    e_upper_lim = peak_loc + (1.1*kev_width[1])/rough_adc_to_kev
+    print(e_lower_lim, e_upper_lim)
+    e_mask = (rough_energy>e_lower_lim)&(rough_energy<e_upper_lim)
+    e_idxs = np.where(e_mask)[0][:40000]
+    print(len(e_idxs))
+    waveforms = sto.read_object('/raw/waveform', raw_file,verbosity=0, idx=e_idxs)[0]
+    baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, idx=e_idxs)[0]
+    input_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
+    print("Processing data")
+    tb_data = run_one_dsp(input_data, dsp_config, db_dict=db_dict)
+    parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}
+    cut_dict = ct.generate_cuts(tb_data, parameters)
+    print('Loaded Cuts')
+    ct_mask = ct.get_cut_indexes(tb_data, cut_dict, 'raw')
+    wf_idxs = e_idxs[ct_mask]
+    energy = tb_data['trapEmax'].nda[ct_mask]
+    hist, bins, params, covs = om.fit_peak_func(energy, func_i= gauss_step, peak=peak, kev_width=kev_width)
+    updated_adc_to_kev = peak/params[1]
+    e_lower_lim = params[1] - (kev_width[0])/updated_adc_to_kev
+    e_upper_lim = params[1] + (kev_width[1])/updated_adc_to_kev
+    print(e_lower_lim, e_upper_lim)
+    final_mask = (energy>e_lower_lim)&(energy<e_upper_lim)
+    final_events = wf_idxs[final_mask]
+    return final_events[:7000]
