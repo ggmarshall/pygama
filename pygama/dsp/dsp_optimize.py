@@ -3,6 +3,7 @@ from .build_processing_chain import build_processing_chain
 from collections import namedtuple
 from pprint import pprint
 import multiprocessing as mp
+from multiprocessing import get_context
 
 
 def run_one_dsp(tb_data, dsp_config, db_dict=None, fom_function=None, verbosity=0, fom_kwargs=None):
@@ -219,20 +220,31 @@ def run_grid_point(tb_data, dsp_config, grids, fom_function, iii, db_dict=None, 
                 db_dict = grid.set_dsp_pars(db_dict, iii)
         else:
             db_dict = grid.set_dsp_pars(db_dict, iii)
+            print(db_dict)
         if verbosity > 1: pprint(dsp_config)
         if verbosity > 0: grid.print_data(iii)
-        result = run_one_dsp(tb_data,
+        tb_out = run_one_dsp(tb_data,
                              dsp_config,
                              db_dict=db_dict,
                              verbosity=verbosity)
-        if verbosity > 0: print("value:", result)
-        return result
+        res = np.ndarray(shape=len(grids), dtype='O')
+        if fom_function:
+            for i in range(len(grids)):
+                if fom_kwargs:
+                    res[i] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
+                else:
+                    res[i] = fom_function[i](tb_out, verbosity)
+            print("value:",res)
+            out = {tuple(iii):res}
+
+        else: 
+            out = {tuple(iii):tb_out}
+        return out
 
 def get_grid_points(grid):
     out = []
     iii = grid[0].get_zero_indices()
     while True:
-        print("value:", tuple(iii))
         out.append(tuple(iii))
         if not grid[0].iterate_indices(iii): break
         grid_check=[]
@@ -243,6 +255,7 @@ def get_grid_points(grid):
 
 def run_grid_multiprocess_parallel(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1, 
                           processes=5, fom_kwargs=None):
+
     if not isinstance(grid, list):
         grid = [grid]
     if not isinstance(fom_function, list):
@@ -254,17 +267,15 @@ def run_grid_multiprocess_parallel(tb_data, dsp_config, grid, fom_function, db_d
     for i in range(len(grid)):
         grid_values.append(np.ndarray(shape = shape, dtype='O'))
     grid_list = get_grid_points(grid)
-    
-    pool = mp.Pool(processes)
-    for gl in grid_list:
-        result = pool.apply_async(run_grid_point, args=(tb_data,dsp_config, grid,None, np.asarray(gl, dtype=np.uint32),
-                                                        db_dict, verbosity))
-        tb_out = result.get()
+    pool = mp.Pool(processes=processes)
+    results = [pool.apply_async(run_grid_point, args=(tb_data,dsp_config, grid, fom_function, np.asarray(gl),
+                    db_dict, verbosity, fom_kwargs)) for gl in grid_list]
+    for result in results:
+        res = result.get()
+        index = list(res.keys())[0]
         for i in range(len(grid)):
-            tb_out = result.get()
-            if fom_kwargs:
-                grid_values[i][gl] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
-            else:
-                grid_values[i][gl] = fom_function[i](tb_out, verbosity)
+            grid_values[i][index] = res[index][i]
+        
     pool.close()
+    pool.join()
     return grid_values

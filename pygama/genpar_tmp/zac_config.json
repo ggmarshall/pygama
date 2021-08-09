@@ -2,14 +2,14 @@
     "zac": {
         "sigma": {
             "start": 1,
-            "end": 16,
-            "frequency": 31,
+            "end": 12,
+            "frequency": 23,
             "unit": "us"
         },
         "flat": {
             "start": 1,
-            "end": 6,
-            "frequency": 21,
+            "end": 4,
+            "frequency": 13,
             "unit": "us"
         }
     }
