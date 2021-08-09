@@ -86,7 +86,10 @@ def raw_to_dsp(f_raw, f_dsp, dsp_config, lh5_tables=None, database=None,
         if n_max and n_max<tot_n_rows: tot_n_rows=n_max
 
         chan_name = tb.split('/')[0]
-        db_dict = database.get(chan_name) if database else None
+        if chan_name=='raw' and database: 
+            db_dict = database
+        else:
+            db_dict = database.get(chan_name) if database else None
         lh5_in, n_rows_read = raw_store.read_object(tb, f_raw, start_row=0, n_rows=buffer_len)
         pc, tb_out = build_processing_chain(lh5_in, dsp_config, db_dict, outputs, verbose, block_width)
 
