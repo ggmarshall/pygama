@@ -159,6 +159,7 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">namedtuple</span>
 <span class="kn">from</span> <span class="nn">pprint</span> <span class="kn">import</span> <span class="n">pprint</span>
 <span class="kn">import</span> <span class="nn">multiprocessing</span> <span class="k">as</span> <span class="nn">mp</span>
+<span class="kn">from</span> <span class="nn">multiprocessing</span> <span class="kn">import</span> <span class="n">get_context</span>
 
 
 <div class="viewcode-block" id="run_one_dsp"><a class="viewcode-back" href="../../../pygama.dsp.html#pygama.dsp.dsp_optimize.run_one_dsp">[docs]</a><span class="k">def</span> <span class="nf">run_one_dsp</span><span class="p">(</span><span class="n">tb_data</span><span class="p">,</span> <span class="n">dsp_config</span><span class="p">,</span> <span class="n">db_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fom_function</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">fom_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
@@ -375,20 +376,31 @@
                 <span class="n">db_dict</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">set_dsp_pars</span><span class="p">(</span><span class="n">db_dict</span><span class="p">,</span> <span class="n">iii</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">db_dict</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">set_dsp_pars</span><span class="p">(</span><span class="n">db_dict</span><span class="p">,</span> <span class="n">iii</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">db_dict</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span> <span class="n">pprint</span><span class="p">(</span><span class="n">dsp_config</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span> <span class="n">grid</span><span class="o">.</span><span class="n">print_data</span><span class="p">(</span><span class="n">iii</span><span class="p">)</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">run_one_dsp</span><span class="p">(</span><span class="n">tb_data</span><span class="p">,</span>
+        <span class="n">tb_out</span> <span class="o">=</span> <span class="n">run_one_dsp</span><span class="p">(</span><span class="n">tb_data</span><span class="p">,</span>
                              <span class="n">dsp_config</span><span class="p">,</span>
                              <span class="n">db_dict</span><span class="o">=</span><span class="n">db_dict</span><span class="p">,</span>
                              <span class="n">verbosity</span><span class="o">=</span><span class="n">verbosity</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">verbosity</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;value:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">result</span></div>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;O&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fom_function</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">grids</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">fom_kwargs</span><span class="p">:</span>
+                    <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">fom_function</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">tb_out</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">,</span> <span class="n">fom_kwargs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">res</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">fom_function</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">tb_out</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;value:&quot;</span><span class="p">,</span><span class="n">res</span><span class="p">)</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">iii</span><span class="p">):</span><span class="n">res</span><span class="p">}</span>
+
+        <span class="k">else</span><span class="p">:</span> 
+            <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="nb">tuple</span><span class="p">(</span><span class="n">iii</span><span class="p">):</span><span class="n">tb_out</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">out</span></div>
 
 <div class="viewcode-block" id="get_grid_points"><a class="viewcode-back" href="../../../pygama.dsp.html#pygama.dsp.dsp_optimize.get_grid_points">[docs]</a><span class="k">def</span> <span class="nf">get_grid_points</span><span class="p">(</span><span class="n">grid</span><span class="p">):</span>
     <span class="n">out</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="n">iii</span> <span class="o">=</span> <span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">get_zero_indices</span><span class="p">()</span>
     <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;value:&quot;</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">iii</span><span class="p">))</span>
         <span class="n">out</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">iii</span><span class="p">))</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">grid</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">iterate_indices</span><span class="p">(</span><span class="n">iii</span><span class="p">):</span> <span class="k">break</span>
         <span class="n">grid_check</span><span class="o">=</span><span class="p">[]</span>
@@ -399,6 +411,7 @@
 
 <div class="viewcode-block" id="run_grid_multiprocess_parallel"><a class="viewcode-back" href="../../../pygama.dsp.html#pygama.dsp.dsp_optimize.run_grid_multiprocess_parallel">[docs]</a><span class="k">def</span> <span class="nf">run_grid_multiprocess_parallel</span><span class="p">(</span><span class="n">tb_data</span><span class="p">,</span> <span class="n">dsp_config</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">fom_function</span><span class="p">,</span> <span class="n">db_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbosity</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> 
                           <span class="n">processes</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">fom_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
         <span class="n">grid</span> <span class="o">=</span> <span class="p">[</span><span class="n">grid</span><span class="p">]</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fom_function</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
@@ -410,19 +423,17 @@
     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">)):</span>
         <span class="n">grid_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">(</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;O&#39;</span><span class="p">))</span>
     <span class="n">grid_list</span> <span class="o">=</span> <span class="n">get_grid_points</span><span class="p">(</span><span class="n">grid</span><span class="p">)</span>
-    
-    <span class="n">pool</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">gl</span> <span class="ow">in</span> <span class="n">grid_list</span><span class="p">:</span>
-        <span class="n">result</span> <span class="o">=</span> <span class="n">pool</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="n">run_grid_point</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">tb_data</span><span class="p">,</span><span class="n">dsp_config</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span><span class="kc">None</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gl</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">),</span>
-                                                        <span class="n">db_dict</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">))</span>
-        <span class="n">tb_out</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+    <span class="n">pool</span> <span class="o">=</span> <span class="n">mp</span><span class="o">.</span><span class="n">Pool</span><span class="p">(</span><span class="n">processes</span><span class="o">=</span><span class="n">processes</span><span class="p">)</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="p">[</span><span class="n">pool</span><span class="o">.</span><span class="n">apply_async</span><span class="p">(</span><span class="n">run_grid_point</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">tb_data</span><span class="p">,</span><span class="n">dsp_config</span><span class="p">,</span> <span class="n">grid</span><span class="p">,</span> <span class="n">fom_function</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">gl</span><span class="p">),</span>
+                    <span class="n">db_dict</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">,</span> <span class="n">fom_kwargs</span><span class="p">))</span> <span class="k">for</span> <span class="n">gl</span> <span class="ow">in</span> <span class="n">grid_list</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="p">:</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">keys</span><span class="p">())[</span><span class="mi">0</span><span class="p">]</span>
         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">grid</span><span class="p">)):</span>
-            <span class="n">tb_out</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">fom_kwargs</span><span class="p">:</span>
-                <span class="n">grid_values</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">gl</span><span class="p">]</span> <span class="o">=</span> <span class="n">fom_function</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">tb_out</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">,</span> <span class="n">fom_kwargs</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">grid_values</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">gl</span><span class="p">]</span> <span class="o">=</span> <span class="n">fom_function</span><span class="p">[</span><span class="n">i</span><span class="p">](</span><span class="n">tb_out</span><span class="p">,</span> <span class="n">verbosity</span><span class="p">)</span>
+            <span class="n">grid_values</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">res</span><span class="p">[</span><span class="n">index</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        
     <span class="n">pool</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="n">pool</span><span class="o">.</span><span class="n">join</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">grid_values</span></div>
 </pre></div>
 
