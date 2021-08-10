@@ -13,7 +13,7 @@ import glob
 
 sto = lh5.Store()
 
-def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, **fom_kwargs):
+def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, n_events=7000, **fom_kwargs):
     """
     Runs optimisation on .lh5 file
     
@@ -31,12 +31,12 @@ def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, **fom_
         optimization will be based. Should accept verbosity as a second argument    
     """
     grid = set_par_space(opt_config)
-    waveforms = sto.read_object('/raw/waveform', file,idx=cuts,verbosity=0)[0]
-    baseline = sto.read_object('/raw/baseline', file,idx=cuts,verbosity=0)[0]
+    waveforms = sto.read_object('/raw/waveform', file,idx=cuts, n_rows = n_events, verbosity=0)[0]
+    baseline = sto.read_object('/raw/baseline', file,idx=cuts, n_rows = n_events, verbosity=0)[0]
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     return opt.run_grid(tb_data,dsp_config,grid, fom, db_dict, verbosity=0, **fom_kwargs)
 
-def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_dict=None, processes=5, verbosity=0, **fom_kwargs):
+def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_dict=None, processes=5, verbosity=0, n_events=7000, **fom_kwargs):
     """
     Runs optimisation on .lh5 file
     
@@ -78,8 +78,8 @@ def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_di
     for i,opt_conf in enumerate(opt_config):
         grid.append(set_par_space(opt_conf)) 
     sto=lh5.Store()
-    waveforms = sto.read_object('/raw/waveform', file,idx=cuts,verbosity=0)[0]
-    baseline = sto.read_object('/raw/baseline', file,idx=cuts,verbosity=0)[0]
+    waveforms = sto.read_object('/raw/waveform', file,idx=cuts, n_rows = n_events, verbosity=0)[0]
+    baseline = sto.read_object('/raw/baseline', file,idx=cuts, n_rows = n_events, verbosity=0)[0]
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     return opt.run_grid_multiprocess_parallel(tb_data,dsp_config,grid, fom, 
                                  db_dict=db_dict,processes=processes, 
@@ -538,10 +538,10 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     e_upper_lim = peak_loc + (1.1*kev_width[1])/rough_adc_to_kev
     print(e_lower_lim, e_upper_lim)
     e_mask = (rough_energy>e_lower_lim)&(rough_energy<e_upper_lim)
-    e_idxs = np.where(e_mask)[0][:40000]
+    e_idxs = np.where(e_mask)[0]
     print(len(e_idxs))
-    waveforms = sto.read_object('/raw/waveform', raw_file,verbosity=0, idx=e_idxs)[0]
-    baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, idx=e_idxs)[0]
+    waveforms = sto.read_object('/raw/waveform', raw_file,verbosity=0, idx=e_idxs, n_rows=40000)[0]
+    baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, idx=e_idxs, n_rows=40000)[0]
     input_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     print("Processing data")
     tb_data = opt.run_one_dsp(input_data, dsp_config, db_dict=db_dict)
@@ -549,7 +549,7 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     cut_dict = cts.generate_cuts(tb_data, parameters)
     print('Loaded Cuts')
     ct_mask = cts.get_cut_indexes(tb_data, cut_dict, 'raw')
-    wf_idxs = e_idxs[ct_mask]
+    wf_idxs = e_idxs[:40000][ct_mask]
     energy = tb_data['trapEmax'].nda[ct_mask]
     hist, bins, params, covs = fit_peak_func(energy, func_i= gauss_step, peak=peak, kev_width=kev_width)
     updated_adc_to_kev = peak/params[1]
@@ -558,7 +558,7 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     print(e_lower_lim, e_upper_lim)
     final_mask = (energy>e_lower_lim)&(energy<e_upper_lim)
     final_events = wf_idxs[final_mask]
-    return final_events[:7000]
+    return final_events
 
 def run_splitter(files):
 
