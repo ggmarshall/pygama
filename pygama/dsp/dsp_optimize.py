@@ -193,36 +193,14 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1,
         if not grid.iterate_indices(iii): break
     return grid_values
 
-def run_multi_grid(tb_data, dsp_config, grids, fom_function, db_dict=None, verbosity=1, **fom_kwargs):
-    shape=grids[0].get_shape()
-    grid_values = np.ndarray(shape = len(grids), dtype='O')
-    iii = grid.get_zero_indices()
-    if verbosity > 0: print("starting grid calculations...")
-    while True:
-        for grid in grids:
-            db_dict = grid.set_dsp_pars(db_dict, iii)
-        if verbosity > 1: pprint(db_dict)
-        if verbosity > 0: [grid.print_data(iii) for grid in grids] 
-        tb_out = run_one_dsp(tb_data, dsp_config,db_dict=db_dict)
-        for i,grid in enumerate(grids):
-            if isinstance(fom_function, list):
-                grid_value[i][iii] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
-            else: 
-                grid_value[i][iii] = fom_function(tb_out, verbosity, fom_kwargs[i])
-
-        if verbosity > 0: print("value:", grid_values[tuple(iii)])
-        if not grid.iterate_indices(iii): break
-    return grid_values
-
 def run_grid_point(tb_data, dsp_config, grids, fom_function, iii, db_dict=None, verbosity=1, fom_kwargs=None):
         if isinstance(grids, list):
             for grid in grids:
                 db_dict = grid.set_dsp_pars(db_dict, iii)
         else:
             db_dict = grid.set_dsp_pars(db_dict, iii)
-            print(db_dict)
         if verbosity > 1: pprint(dsp_config)
-        if verbosity > 0: grid.print_data(iii)
+        if verbosity > 0: [grid.print_data(iii) for grid in grids]
         tb_out = run_one_dsp(tb_data,
                              dsp_config,
                              db_dict=db_dict,
@@ -231,9 +209,15 @@ def run_grid_point(tb_data, dsp_config, grids, fom_function, iii, db_dict=None, 
         if fom_function:
             for i in range(len(grids)):
                 if fom_kwargs:
-                    res[i] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
+                    if len(fom_function)>1:
+                        res[i] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
+                    else:
+                        res[i] = fom_function[0](tb_out, verbosity, fom_kwargs[i])
                 else:
-                    res[i] = fom_function[i](tb_out, verbosity)
+                    if len(fom_function)>1:
+                        res[i] = fom_function[i](tb_out, verbosity)
+                    else:
+                        res[i] = fom_function[0](tb_out, verbosity)
             print("value:",res)
             out = {tuple(iii):res}
 
@@ -258,7 +242,7 @@ def run_grid_multiprocess_parallel(tb_data, dsp_config, grid, fom_function, db_d
 
     if not isinstance(grid, list):
         grid = [grid]
-    if not isinstance(fom_function, list):
+    if not isinstance(fom_function, list) and fom_function is not None:
         fom_function = [fom_function]
     if not isinstance(fom_kwargs, list):
         fom_kwargs = [fom_kwargs]

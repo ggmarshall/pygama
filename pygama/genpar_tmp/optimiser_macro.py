@@ -68,15 +68,15 @@ def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_di
                     out_list[i][key] = in_dict[key]
         return out_list  
 
-    if 'fom_kwargs' in fom_kwargs:
-        fom_kwargs = fom_kwargs['fom_kwargs']
-    
     if not isinstance(opt_config, list):
         opt_config = [opt_config]
-    fom_kwargs = form_dict(fom_kwargs, len(opt_config))
     grid = []
     for i,opt_conf in enumerate(opt_config):
         grid.append(set_par_space(opt_conf)) 
+    if fom_kwargs:
+        if 'fom_kwargs' in fom_kwargs:
+            fom_kwargs = fom_kwargs['fom_kwargs']
+        fom_kwargs = form_dict(fom_kwargs, len(grid))    
     sto=lh5.Store()
     waveforms = sto.read_object('/raw/waveform', file,idx=cuts, n_rows = n_events, verbosity=0)[0]
     baseline = sto.read_object('/raw/baseline', file,idx=cuts, n_rows = n_events, verbosity=0)[0]
@@ -518,9 +518,8 @@ def get_best_vals_no_ctc(peak_grids, param, opt_dict):
     return  fwhm_dict, db_dict
 
 
-def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_width):
+def event_selection(raw_file, dsp_config, db_dict, peaks_keV, peak_idx, kev_width):
     sto=lh5.Store()
-    raw_file = sorted(run_splitter(raw_files), key=len)[-1]
     baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, n_rows=5*10**6)[0].nda
     wf_max = sto.read_object('/raw/wf_max', raw_file,verbosity=0, n_rows=5*10**6)[0].nda
     rough_energy = wf_max-baseline
@@ -540,16 +539,17 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     e_mask = (rough_energy>e_lower_lim)&(rough_energy<e_upper_lim)
     e_idxs = np.where(e_mask)[0]
     print(len(e_idxs))
-    waveforms = sto.read_object('/raw/waveform', raw_file,verbosity=0, idx=e_idxs, n_rows=40000)[0]
-    baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, idx=e_idxs, n_rows=40000)[0]
+    waveforms = sto.read_object('/raw/waveform', raw_file,verbosity=0, idx=e_idxs, n_rows=30000)[0]
+    baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, idx=e_idxs, n_rows=30000)[0]
     input_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     print("Processing data")
     tb_data = opt.run_one_dsp(input_data, dsp_config, db_dict=db_dict)
     parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}
     cut_dict = cts.generate_cuts(tb_data, parameters)
+    print(cut_dict)
     print('Loaded Cuts')
     ct_mask = cts.get_cut_indexes(tb_data, cut_dict, 'raw')
-    wf_idxs = e_idxs[:40000][ct_mask]
+    wf_idxs = e_idxs[:30000][ct_mask]
     energy = tb_data['trapEmax'].nda[ct_mask]
     hist, bins, params, covs = fit_peak_func(energy, func_i= gauss_step, peak=peak, kev_width=kev_width)
     updated_adc_to_kev = peak/params[1]
