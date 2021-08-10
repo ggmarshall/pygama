@@ -9,6 +9,7 @@ import pygama.analysis.calibration as pgc
 import pygama.genpar_tmp.cuts as cts
 import pickle as pkl
 from scipy.optimize import curve_fit
+import glob
 
 sto = lh5.Store()
 
@@ -346,18 +347,13 @@ def fwhm_slope(x, m0, m1, m2):
     """
     return np.sqrt(m0 + m1*x +(m2*(x**2)))
 
-def load_grids(file_path, filter_name):
-    data_path = os.path.join(file_path, filter_name)
-    peak_files = os.listdir(data_path)
-    peak_files.sort(key =key)
-    peak_energies = np.array([peak.split('.p')[0] for peak in peak_files], dtype='float32')
+def load_grids(files, parameter):
     peak_grids = []
-    for peak in peak_files:
-        full_data_path = os.path.join(data_path, peak)
-        d = open(full_data_path,"rb")
-        grid = pkl.load(d)
-        peak_grids.append(grid)
-    return peak_grids, peak_energies
+    for file in files:
+        with open(file,"rb") as d:
+            grid = pkl.load(d)
+        peak_grids.append(grid[parameter])
+    return peak_grids
 
 def load_config(path, filter_name):
     if filter_name =='Cusp':
@@ -482,28 +478,37 @@ def get_best_vals(peak_grids, param, opt_dict):
     qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
     qbb_alphas = interpolate_grid(peak_energies[1:], alpha_grids[1:], 2039.061, 1)
     ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict, filter_name)
-    return qbb_alphas[ixs[0], ixs[1]][0], fwhm_dict, db_dict
+    out_grid = {'fwhm':qbb_grid, 'fwhm_err':qbb_errs, 'alphas':qbb_alphas}
+    return qbb_alphas[ixs[0], ixs[1]][0], fwhm_dict, db_dict, out_grid
 
-def get_filter_params(file_path, opt_path, det):
-    filter_names = ['Cusp', 'Zac', 'Trap']
+def get_filter_params(files, opt_dicts):
     full_db_dict = {}
     full_fwhm_dict = {}
-    for name in filter_names:
-        opt_dict = load_config(opt_path, name)
-        peak_grids, peak_energies = load_grids(file_path, name)
-        ctc_params= list(peak_grids[0][0,0].keys())
+    full_grids={}
+    parameters =['zacEmax', 'trapEmax', 'cuspEmax']
+    matched_configs = match_config(parameters, opt_dicts)
+    for param in params:
+        opt_dict = matched_configs[parameters]
+        peak_grids = load_grids(files, param)
+        ctc_params= list(peak_grids[param][0,0].keys())
         ctc_dict = {}
+        
         for ctc_param in ctc_params:
             if ctc_param == 'QDrift':
-                alpha, fwhm, db_dict = get_best_vals(peak_grids, ctc_param, opt_dict)
+                alpha, fwhm, db_dict, output_grid = get_best_vals(peak_grids, ctc_param, opt_dict)
                 opt_name = list(opt_dict.keys())[0]
                 db_dict[opt_name].update({'alpha':alpha})
+                
             else:
                 _,fwhm,_ = get_best_vals(peak_grids, ctc_param, opt_dict)
+            try:
+                full_grids[param][ctc_param] = output_grid
+            except:
+                full_grids[param] = {ctc_param:output_grid}
             ctc_dict[ctc_param] =fwhm
-        full_fwhm_dict[name] = ctc_dict
+        full_fwhm_dict[param] = ctc_dict
         full_db_dict.update(db_dict)
-    return full_db_dict, full_fwhm_dict
+    return full_db_dict, full_fwhm_dict, full_grids
 
 def get_best_vals_no_ctc(peak_grids, param, opt_dict):
 
@@ -528,7 +533,6 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     hist, bins, var = pgh.get_hist(rough_energy, range=(Euc_min, Euc_max), dx=dEuc)
     detected_peaks_locs, detected_peaks_keV, roughpars = pgc.hpge_find_E_peaks(hist, bins, var, peaks_keV)
     peak_loc = detected_peaks_locs[peak_idx]
-    kev_width = kev_widths[peak_idx]
     rough_adc_to_kev = roughpars[0]
     e_lower_lim = peak_loc - (1.1*kev_width[0])/rough_adc_to_kev
     e_upper_lim = peak_loc + (1.1*kev_width[1])/rough_adc_to_kev
@@ -540,14 +544,14 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, idx=e_idxs)[0]
     input_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     print("Processing data")
-    tb_data = run_one_dsp(input_data, dsp_config, db_dict=db_dict)
+    tb_data = opt.run_one_dsp(input_data, dsp_config, db_dict=db_dict)
     parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}
-    cut_dict = ct.generate_cuts(tb_data, parameters)
+    cut_dict = cts.generate_cuts(tb_data, parameters)
     print('Loaded Cuts')
-    ct_mask = ct.get_cut_indexes(tb_data, cut_dict, 'raw')
+    ct_mask = cts.get_cut_indexes(tb_data, cut_dict, 'raw')
     wf_idxs = e_idxs[ct_mask]
     energy = tb_data['trapEmax'].nda[ct_mask]
-    hist, bins, params, covs = om.fit_peak_func(energy, func_i= gauss_step, peak=peak, kev_width=kev_width)
+    hist, bins, params, covs = fit_peak_func(energy, func_i= gauss_step, peak=peak, kev_width=kev_width)
     updated_adc_to_kev = peak/params[1]
     e_lower_lim = params[1] - (kev_width[0])/updated_adc_to_kev
     e_upper_lim = params[1] + (kev_width[1])/updated_adc_to_kev
@@ -555,3 +559,24 @@ def event_selection(raw_files, dsp_config, db_dict, peaks_keV, peak_idx, kev_wid
     final_mask = (energy>e_lower_lim)&(energy<e_upper_lim)
     final_events = wf_idxs[final_mask]
     return final_events[:7000]
+
+def run_splitter(files):
+
+    if isinstance(files, str): files = [files]
+    # Expand wildcards
+    files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
+    
+    runs = []
+    run_files = []
+    for file in files:
+        base=os.path.basename(file)
+        file_name = os.path.splitext(base)[0]
+        parts = file_name.split('-')
+        run_no = parts[3]
+        if run_no not in runs:
+            runs.append(run_no)
+            run_files.append([])
+        for i,run in enumerate(runs):
+            if run == run_no:
+                run_files[i].append(file) 
+    return run_files
