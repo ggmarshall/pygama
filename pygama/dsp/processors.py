@@ -46,3 +46,4 @@ from ._processors.old_linear_slope_fit import old_linear_slope_fit
 from ._processors.presum import presum
 from ._processors.windower import windower
 from ._processors.upsampler import upsampler
+from ._processors.ctc import charge_trapping_correction

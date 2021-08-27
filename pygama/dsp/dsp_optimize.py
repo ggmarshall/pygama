@@ -194,38 +194,44 @@ def run_grid(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1,
     return grid_values
 
 def run_grid_point(tb_data, dsp_config, grids, fom_function, iii, db_dict=None, verbosity=1, fom_kwargs=None):
-        if isinstance(grids, list):
-            for grid in grids:
-                db_dict = grid.set_dsp_pars(db_dict, iii)
-        else:
+    """
+    Runs a single grid point for the index specified
+    """
+    if isinstance(grids, list):
+        for grid in grids:
             db_dict = grid.set_dsp_pars(db_dict, iii)
-        if verbosity > 1: pprint(dsp_config)
-        if verbosity > 0: [grid.print_data(iii) for grid in grids]
-        tb_out = run_one_dsp(tb_data,
-                             dsp_config,
-                             db_dict=db_dict,
-                             verbosity=verbosity)
-        res = np.ndarray(shape=len(grids), dtype='O')
-        if fom_function:
-            for i in range(len(grids)):
-                if fom_kwargs:
-                    if len(fom_function)>1:
-                        res[i] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
-                    else:
-                        res[i] = fom_function[0](tb_out, verbosity, fom_kwargs[i])
+    else:
+        db_dict = grid.set_dsp_pars(db_dict, iii)
+    if verbosity > 1: pprint(dsp_config)
+    if verbosity > 0: [grid.print_data(iii) for grid in grids]
+    tb_out = run_one_dsp(tb_data,
+                        dsp_config,
+                        db_dict=db_dict,
+                        verbosity=verbosity)
+    res = np.ndarray(shape=len(grids), dtype='O')
+    if fom_function:
+        for i in range(len(grids)):
+            if fom_kwargs:
+                if len(fom_function)>1:
+                    res[i] = fom_function[i](tb_out, verbosity, fom_kwargs[i])
                 else:
-                    if len(fom_function)>1:
-                        res[i] = fom_function[i](tb_out, verbosity)
-                    else:
-                        res[i] = fom_function[0](tb_out, verbosity)
-            print("value:",res)
-            out = {tuple(iii):res}
+                    res[i] = fom_function[0](tb_out, verbosity, fom_kwargs[i])
+            else:
+                if len(fom_function)>1:
+                    res[i] = fom_function[i](tb_out, verbosity)
+                else:
+                    res[i] = fom_function[0](tb_out, verbosity)
+        print("value:",res)
+        out = {tuple(iii):res}
 
-        else: 
-            out = {tuple(iii):tb_out}
-        return out
+    else: 
+        out = {tuple(iii):tb_out}
+    return out
 
 def get_grid_points(grid):
+    """
+    Generates a list of the indices of all possible grid points
+    """
     out = []
     iii = grid[0].get_zero_indices()
     while True:
@@ -239,6 +245,45 @@ def get_grid_points(grid):
 
 def run_grid_multiprocess_parallel(tb_data, dsp_config, grid, fom_function, db_dict=None, verbosity=1, 
                           processes=5, fom_kwargs=None):
+
+    """
+    run one iteration of DSP on tb_data with multiprocessing, can handle multiple grids if they are the same dimensions
+
+    Optionally returns a value for optimization
+
+    Parameters:
+    -----------
+    tb_data : lh5 Table
+        An input table of lh5 data. Typically a selection is made prior to
+        sending tb_data to this function: optimization typically doesn't have to
+        run over all data
+    dsp_config : dict
+        Specifies the DSP to be performed for this iteration (see
+        build_processing_chain()) and the list of output variables to appear in
+        the output table
+    grid: pargrid, list of pargrids
+        Grids to run optimization on
+    db_dict : dict (optional)
+        DSP parameters database. See build_processing_chain for formatting info
+    fom_function : function or None (optional)
+        When given the output lh5 table of this DSP iteration, the
+        fom_function must return a scalar figure-of-merit value upon which the
+        optimization will be based. Should accept verbosity as a second argument. 
+        If multiple grids provided can either pass one fom to have it run for each grid 
+        or a list of fom to run different fom on each grid.
+    verbosity : int (optional)
+        verbosity for the processing chain and fom_function calls
+    fom_kwargs: 
+        any keyword arguments to pass to the fom, 
+        if multiple grids given will need to be a list of the fom_kwargs for each grid
+
+    Returns:
+    --------
+    figure_of_merit : float
+        If fom_function is not None, returns figure-of-merit value for the DSP iteration
+    tb_out : lh5 Table
+        If fom_function is None, returns the output lh5 table for the DSP iteration
+    """
 
     if not isinstance(grid, list):
         grid = [grid]
