@@ -45,6 +45,9 @@ def generate_cuts(data, parameters):
     return output_dict
 
 def compare_dicts(dict1, dict2):
+    """
+    Used to compare 2 dictionaries for evaluating energy dependence of cuts 
+    """
     parameters = dict1.keys()
     output_dict = {}
     for par in parameters:
@@ -61,6 +64,9 @@ def compare_dicts(dict1, dict2):
     return output_dict
 
 def check_energy_dep(data, parameters, energy_param):
+    """
+    Checks energy dependence of cut parameters by calculating cut values in 2 windows
+    """
     energy = data[energy_param]
     max_val = np.percentile(energy,99)
     half_max = max_val/2
@@ -79,6 +85,9 @@ def check_energy_dep(data, parameters, energy_param):
     return out_dict
 
 def get_bounds(mean, sigma, area):
+    """
+    Calculates bounds for gaussian peak fitting
+    """
     if mean >0:
         mean_lims = [0.75*mean, 1.25*mean]
     else:
@@ -250,7 +259,8 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
         cut_dict = generate_cuts(data, cut_parameters)
         energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax')
         cut_dict.update(energy_dep_dict)
-        print(cut_dict)
+        print("Generated Cut Dictionary")
+        if verbose: print(cut_dict)
         idxs = []
         for file in files:
             base=os.path.basename(files[0])
@@ -314,7 +324,7 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
 
     mask = np.concatenate(idxs)
     
-    print(len(np.where(mask)[0])/ len(mask) *100, "% passed cuts")
+    print(f"{len(np.where(mask)[0])/ len(mask) *100:1.2f}% passed cuts")
     tb = sto.read_object(lh5_group, files)[0]
     data = lh5.Table.get_dataframe(tb)
         
@@ -349,9 +359,13 @@ def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_paramet
     cut_file : string
                 Path to json dictionary file with cuts, if provided cuts will be saved/loaded from here.
     
-    cut_parameters :
+    cut_parameters : dict
                 Dictionary in the form {cut:no_sigmas}, can be double sided {cut:{"left":no_sigmas,"right":no_sigmas}}
                 if cut_file provided and cuts found there will overrule cut_parameters, if none found will save these to cut_file
+    
+    energy_param :  str
+                Parameter used to determine the energy dependence of the cuts and to correct for them if found
+
     
     """
 
@@ -375,7 +389,8 @@ def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_paramet
         cut_dict = generate_cuts(data, cut_parameters)
         energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax')
         cut_dict.update(energy_dep_dict)
-        print(cut_dict)
+        print("Generated Cut Dictionary")
+        if verbose: print(cut_dict)
         idxs = []
         for file in files:
             base=os.path.basename(file)
@@ -437,7 +452,7 @@ def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_paramet
             idxs.append(idx)
     
     mask = np.concatenate(idxs)
-    print(len(np.where(mask)[0])/ len(mask) *100, "% passed cuts")
+    print(f"{len(np.where(mask)[0])/ len(mask) *100:1.2f}% passed cuts")
     #Concat dataframes together and return
     par_data = lh5.load_nda(files, parameters, lh5_group, verbose=verbose)
     failed_cuts={}

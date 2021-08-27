@@ -13,7 +13,7 @@ import glob
 
 sto = lh5.Store()
 
-def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, n_events=7000, **fom_kwargs):
+def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, n_events=8000, **fom_kwargs):
     """
     Runs optimisation on .lh5 file
     
@@ -36,9 +36,10 @@ def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, n_even
     tb_data = lh5.Table(col_dict = { 'waveform' : waveforms, 'baseline':baseline } )
     return opt.run_grid(tb_data,dsp_config,grid, fom, db_dict, verbosity=0, **fom_kwargs)
 
-def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_dict=None, processes=5, verbosity=0, n_events=7000, **fom_kwargs):
+def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_dict=None, processes=5, verbosity=0, n_events=8000, **fom_kwargs):
     """
-    Runs optimisation on .lh5 file
+    Runs optimisation on .lh5 file, this version multiprocesses the grid points, it also can handle multiple grids being passed 
+    as long as they are the same dimensions.
     
     Parameters
     ----------
@@ -51,7 +52,11 @@ def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_di
     fom: function
         When given the output lh5 table of a DSP iteration, the
         fom_function must return a scalar figure-of-merit value upon which the
-        optimization will be based. Should accept verbosity as a second argument    
+        optimization will be based. Should accept verbosity as a second argument   
+    n_events : int
+        Number of events to run over
+    processes : int
+        Number of speperate processes to run for the multiprocessing 
     """
     def form_dict(in_dict, length):
         keys = list(in_dict.keys())
@@ -86,6 +91,9 @@ def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_di
                                  verbosity=verbosity, fom_kwargs=fom_kwargs)
 
 def set_par_space(opt_config):
+    """
+    Generates grid for optimizer from dictionary of form {param : {start: , end: , frequency: }}
+    """
     par_space = opt.ParGrid()
     for name in opt_config.keys():
         p_values = opt_config[name]
@@ -95,12 +103,18 @@ def set_par_space(opt_config):
     return par_space
     
 def set_values(par_values):
+    """
+    Finds values for grid
+    """
     string_values=np.linspace(par_values['start'],par_values['end'],par_values['frequency'])
     string_values = [ f'{val:.2f}*{par_values["unit"]}' for val in string_values]
     return string_values
 
 
 def simple_guess(hist, bins, var, func_i):
+    """
+    Simple guess for peak fitting
+    """
     if func_i == pgf.radford_peak:
         mu, sigma, amp = pgh.get_gaussian_guess(hist,bins)
         i_0 = np.argmax(hist)
@@ -130,6 +144,9 @@ def simple_guess(hist, bins, var, func_i):
         
 
 def fit_peak_func(energies, peak, kev_width, func_i= pgf.gauss_step):
+    """
+    Fits an energy peak using the function specified
+    """
     bin_width = 1
     lower_bound = (np.nanmin(energies)//bin_width) * bin_width
     upper_bound = ((np.nanmax(energies)//bin_width)+1) * bin_width
@@ -151,6 +168,9 @@ def fit_peak_func(energies, peak, kev_width, func_i= pgf.gauss_step):
     return hist, bins, pars_i, cov_i
 
 def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=False):
+    """
+    Applies the drift time correction and fits the peak returns the fwhm, max, err. Can return result in ADC or keV
+    """
     correction = np.multiply(np.multiply(alpha,dt, dtype='float64'),Energies, dtype='float64')
     ct_energy = np.add(correction, Energies)
     
@@ -212,6 +232,9 @@ def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=Fa
 
 
 def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter):
+    """
+    Fom for sweeping over ctc values to find the best value, returns the best found fwhm 
+    """
     parameter = kwarg_dict['parameter']
     func = kwarg_dict['func']
     Energies=tb_in[parameter].nda
@@ -219,7 +242,7 @@ def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter):
     peak = kwarg_dict['peak']
     kev_width = kwarg_dict['kev_width']
     max_alpha = 3*10**-6
-    astep= 10**-7
+    astep= 0.75*10**-7
     if ctc_parameter == 'QDrift':
         dt = tb_in['dt_eff'].nda 
     elif ctc_parameter == 'dt':
@@ -274,6 +297,9 @@ def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter):
                 } 
 
 def fom_all_fit(tb_in,verbosity, kwarg_dict):
+    """
+    fom to run over different ctc parameters
+    """
     ctc_parameters = ['dt', 'rt', 'QDrift']
     output_dict = {}
     for param in ctc_parameters:
@@ -282,6 +308,9 @@ def fom_all_fit(tb_in,verbosity, kwarg_dict):
     return output_dict
 
 def fom_FWHM_fit(tb_in,verbosity, kwarg_dict):
+    """
+    fom with no ctc sweep
+    """
     parameter = kwarg_dict['parameter']
     func = kwarg_dict['func']
     Energies=tb_in[parameter].nda
@@ -296,6 +325,9 @@ def fom_FWHM_fit(tb_in,verbosity, kwarg_dict):
             'fwhm_err': final_err} 
 
 def get_peak_indices(dsp_file, peak_val, verbose=True):
+    """
+    Finds the indexes of events in the peak after cuts to run optimizer on, uses dsp files
+    """
     energy = lh5.load_nda(dsp_file, ['trapEmax'], 'raw')['trapEmax']
     if verbose:print('Data Loaded')
 
@@ -335,190 +367,10 @@ def get_peak_indices(dsp_file, peak_val, verbose=True):
     if verbose:print(f'Got events in {peak_val}')
     return wf_idxs, func, kev_width
 
-def slice_dict(in_dict, n):
-    out_dict = {}
-    for par in in_dict:
-        out_dict[par]=in_dict[par][:n]
-    return out_dict
-
-def fwhm_slope(x, m0, m1, m2):
-    """
-    Fit the energy resolution curve
-    """
-    return np.sqrt(m0 + m1*x +(m2*(x**2)))
-
-def load_grids(files, parameter):
-    peak_grids = []
-    for file in files:
-        with open(file,"rb") as d:
-            grid = pkl.load(d)
-        peak_grids.append(grid[parameter])
-    return peak_grids
-
-def load_config(path, filter_name):
-    if filter_name =='Cusp':
-        opt_config = os.path.join(path, 'cusp_config.json')
-    elif filter_name =='Zac':
-        opt_config = os.path.join(path, 'zac_config.json')
-    elif filter_name =='Trap':
-        opt_config = os.path.join(path, 'etrap_config.json')
-    elif filter_name =='TTrap':
-        opt_config = os.path.join(path, 'ttrap_config.json')
-    with open(opt_config, 'r') as o:
-        opt_dict = json.load(o)
-    return opt_dict
-
-def get_ctc_grid(grids, ctc_param):
-    error_grids = []
-    dt_grids = []
-    alpha_grids=[]
-    for grid in peak_grids:
-        shape=grid.shape
-        dt_grid = np.ndarray(shape=shape)
-        alpha_grid = np.ndarray(shape=shape)
-        error_grid = np.ndarray(shape=shape)
-        for i in range(shape[0]):
-            for j in range(shape[1]):
-                dt_grid[i,j]= grid[i,j][ctc_param]['fwhm']
-                
-                error_grid[i,j]= grid[i,j][ctc_param]['fwhm_err']
-                try:
-                    alpha_grid[i,j]= grid[i,j][ctc_param]['alpha']
-                except:
-                    pass
-        dt_grids.append(dt_grid)
-        alpha_grids.append(alpha_grid)
-        error_grids.append(error_grid)
-    return dt_grids, error_grids , alpha_grids
-
-def interpolate_energy(peak_energies, grids, error_grids, energy):
-    grid_no = len(grids)
-    grid_shape = grids[0].shape
-    out_grid = np.empty(grid_shape)
-    out_grid_err = np.empty(grid_shape)
-    for index, x in np.ndenumerate(grids[0]):
-        points = np.array([grids[i][index] for i in range(len(grids))])
-        err_points = np.array([error_grids[i][index] for i in range(len(grids))])
-        nan_mask = np.isnan(points)
-        nan_mask = nan_mask | (points<0)
-        try:
-            if len(points[~nan_mask])<5:
-                return np.nan, np.nan
-            param_guess  = [0.2,0.001,0.000001]
-            param_bounds = (0, [10., 1. ,0.1])
-            fit_pars, fit_covs = curve_fit(fwhm_slope, peak_energies,points, sigma=err_points, 
-                               p0=param_guess, bounds=param_bounds, absolute_sigma=True)
-            fit_qbb = fwhm_slope(energy,*fit_pars)
-            sderrs = np.sqrt(np.diag(fit_covs))
-            qbb_err = fwhm_slope(energy,*(fit_pars+sderrs))-fwhm_slope(energy,*fit_pars)
-            out_grid[index] = fit_qbb
-            out_grid_err[index] = qbb_err
-        except:
-            out_grid[index] = np.nan
-            out_grid_err[index] = np.nan
-    return out_grid, out_grid_err
-
-def find_lowest_grid_point_save(grid, err_grid, opt_dict, filter_name):
-    opt_name = list(opt_dict.keys())[0]
-    keys = list(opt_dict[opt_name].keys())
-    param_list = []
-    shape = []
-    db_dict={}
-    for key in keys:
-        param_dict = opt_dict[opt_name][key]
-        grid_axis=np.linspace(param_dict['start'],param_dict['end'],param_dict['frequency'])
-        param_list.append(grid_axis)
-        shape.append(len(grid_axis))
-       
-    total_lengths = np.zeros(shape)
-    
-    for index, x in np.ndenumerate(total_lengths):
-        for i,param in enumerate(param_list):
-            total_lengths[index]+= param[index[i]]
-    min_val = np.nanmin(grid)
-    lowest_ixs = np.where((grid == min_val))
-    #print('Minimum value is :', min_val, '+-', err_grid[lowest_ixs][0])
-    fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
-    #print(lowest_ixs)
-    if len(lowest_ixs[0]) ==1:
-        for i,key in enumerate(keys):
-            #print(key, ':',param_list[i][lowest_ixs[i]][0], 'us')
-            if i ==0:
-                db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
-            else:
-                db_dict[opt_name][key] = f'{param_list[i][lowest_ixs[i]][0]}*us'
-    else:
-        shortest_length = np.argmin(total_lengths[lowest_ixs])
-        final_idxs = [lowest_ix[shortest_length] for lowest_ix in lowest_ixs]
-        for i,key in enumerate(keys):
-            #print(key, ':',param_list[i][final_idxs[i]], 'us')
-            db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
-    return lowest_ixs, fwhm_dict, db_dict
-
-def interpolate_grid(energies, grids, int_energy, deg):
-    grid_no = len(grids)
-    grid_shape = grids[0].shape
-    out_grid = np.empty(grid_shape)
-    for index, x in np.ndenumerate(grids[0]):
-        points = np.array([grids[i][index] for i in range(len(grids))])
-        nan_mask = np.isnan(points)
-        nan_mask = nan_mask | (points<0)
-        try:
-            if len(points[~nan_mask])<5:
-                raise IndexError
-            fit_point = np.polynomial.polynomial.polyfit(energies[~nan_mask],points[~nan_mask], deg=deg)
-            out_grid[index] = np.polynomial.polynomial.polyval(int_energy, fit_point)
-        except:
-            out_grid[index] = np.nan
-    return out_grid
-
-def get_best_vals(peak_grids, param, opt_dict):
-
-    dt_grids, error_grids, alpha_grids = get_ctc_grid(peak_grids, param)
-    qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
-    qbb_alphas = interpolate_grid(peak_energies[1:], alpha_grids[1:], 2039.061, 1)
-    ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict, filter_name)
-    out_grid = {'fwhm':qbb_grid, 'fwhm_err':qbb_errs, 'alphas':qbb_alphas}
-    return qbb_alphas[ixs[0], ixs[1]][0], fwhm_dict, db_dict, out_grid
-
-def get_filter_params(files, opt_dicts):
-    full_db_dict = {}
-    full_fwhm_dict = {}
-    full_grids={}
-    parameters =['zacEmax', 'trapEmax', 'cuspEmax']
-    matched_configs = match_config(parameters, opt_dicts)
-    for param in params:
-        opt_dict = matched_configs[parameters]
-        peak_grids = load_grids(files, param)
-        ctc_params= list(peak_grids[param][0,0].keys())
-        ctc_dict = {}
-        
-        for ctc_param in ctc_params:
-            if ctc_param == 'QDrift':
-                alpha, fwhm, db_dict, output_grid = get_best_vals(peak_grids, ctc_param, opt_dict)
-                opt_name = list(opt_dict.keys())[0]
-                db_dict[opt_name].update({'alpha':alpha})
-                
-            else:
-                _,fwhm,_ = get_best_vals(peak_grids, ctc_param, opt_dict)
-            try:
-                full_grids[param][ctc_param] = output_grid
-            except:
-                full_grids[param] = {ctc_param:output_grid}
-            ctc_dict[ctc_param] =fwhm
-        full_fwhm_dict[param] = ctc_dict
-        full_db_dict.update(db_dict)
-    return full_db_dict, full_fwhm_dict, full_grids
-
-def get_best_vals_no_ctc(peak_grids, param, opt_dict):
-
-    dt_grids, error_grids, alpha_grids = get_ctc_grid(peak_grids, param)
-    qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
-    ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict, filter_name)
-    return  fwhm_dict, db_dict
-
-
 def event_selection(raw_file, dsp_config, db_dict, peaks_keV, peak_idx, kev_width):
+    """
+    Finds the indexes of events in the peak after cuts to run optimizer on, uses raw files
+    """
     sto=lh5.Store()
     baseline = sto.read_object('/raw/baseline', raw_file,verbosity=0, n_rows=5*10**6)[0].nda
     wf_max = sto.read_object('/raw/wf_max', raw_file,verbosity=0, n_rows=5*10**6)[0].nda
@@ -560,7 +412,232 @@ def event_selection(raw_file, dsp_config, db_dict, peaks_keV, peak_idx, kev_widt
     final_events = wf_idxs[final_mask]
     return final_events
 
+def slice_dict(in_dict, n):
+    out_dict = {}
+    for par in in_dict:
+        out_dict[par]=in_dict[par][:n]
+    return out_dict
+
+
+
+def load_grids(files, parameter):
+    """
+    Loads in optimizer grids
+    """
+    peak_grids = []
+    for file in files:
+        with open(file,"rb") as d:
+            grid = pkl.load(d)
+        peak_grids.append(grid[parameter])
+    return peak_grids
+
+def load_config(path, filter_name):
+    """
+    Loads in optimizer configs
+    """
+    if filter_name =='Cusp':
+        opt_config = os.path.join(path, 'cusp_config.json')
+    elif filter_name =='Zac':
+        opt_config = os.path.join(path, 'zac_config.json')
+    elif filter_name =='Trap':
+        opt_config = os.path.join(path, 'etrap_config.json')
+    elif filter_name =='TTrap':
+        opt_config = os.path.join(path, 'ttrap_config.json')
+    with open(opt_config, 'r') as o:
+        opt_dict = json.load(o)
+    return opt_dict
+
+def get_ctc_grid(grids, ctc_param):
+    """
+    Reshapes optimizer grids to be in easier form
+    """
+    error_grids = []
+    dt_grids = []
+    alpha_grids=[]
+    for grid in grids:
+        shape=grid.shape
+        dt_grid = np.ndarray(shape=shape)
+        alpha_grid = np.ndarray(shape=shape)
+        error_grid = np.ndarray(shape=shape)
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                dt_grid[i,j]= grid[i,j][ctc_param]['fwhm']
+                
+                error_grid[i,j]= grid[i,j][ctc_param]['fwhm_err']
+                try:
+                    alpha_grid[i,j]= grid[i,j][ctc_param]['alpha']
+                except:
+                    pass
+        dt_grids.append(dt_grid)
+        alpha_grids.append(alpha_grid)
+        error_grids.append(error_grid)
+    return dt_grids, error_grids , alpha_grids
+
+def interpolate_energy(peak_energies, grids, error_grids, energy):
+    """
+    Interpolates fwhm vs energy for every grid point
+    """
+    def fwhm_slope(x, m0, m1):
+        """
+        Fit the energy resolution curve
+        """
+        return np.sqrt(m0 + m1*x)
+    grid_no = len(grids)
+    grid_shape = grids[0].shape
+    out_grid = np.empty(grid_shape)
+    out_grid_err = np.empty(grid_shape)
+    for index, x in np.ndenumerate(grids[0]):
+        points = np.array([grids[i][index] for i in range(len(grids))])
+        err_points = np.array([error_grids[i][index] for i in range(len(grids))])
+        nan_mask = np.isnan(points)
+        nan_mask = nan_mask | (points<0)| (0.1*points<err_points)
+        try:
+            if len(points[nan_mask])>0 or nan_mask[-1] == True:
+                raise ValueError
+            param_guess  = [0.2,0.001]
+            param_bounds = (0, [10., 1.])
+            fit_pars, fit_covs = curve_fit(fwhm_slope, peak_energies,points, sigma=err_points, 
+                               p0=param_guess, bounds=param_bounds, absolute_sigma=True)
+            fit_qbb = fwhm_slope(energy,*fit_pars)
+            sderrs = np.sqrt(np.diag(fit_covs))
+            qbb_err = fwhm_slope(energy,*(fit_pars+sderrs))-fwhm_slope(energy,*fit_pars)
+            out_grid[index] = fit_qbb
+            out_grid_err[index] = qbb_err
+        except:
+            out_grid[index] = np.nan
+            out_grid_err[index] = np.nan
+    return out_grid, out_grid_err
+
+def find_lowest_grid_point_save(grid, err_grid, opt_dict):
+    """
+    Finds the lowest grid point, if more than one with same value returns shortest filter.
+    """
+    opt_name = list(opt_dict.keys())[0]
+    keys = list(opt_dict[opt_name].keys())
+    param_list = []
+    shape = []
+    db_dict={}
+    for key in keys:
+        param_dict = opt_dict[opt_name][key]
+        grid_axis=np.linspace(param_dict['start'],param_dict['end'],param_dict['frequency'])
+        param_list.append(grid_axis)
+        shape.append(len(grid_axis))
+       
+    total_lengths = np.zeros(shape)
+    
+    for index, x in np.ndenumerate(total_lengths):
+        for i,param in enumerate(param_list):
+            total_lengths[index]+= param[index[i]]
+    min_val = np.nanmin(grid)
+    lowest_ixs = np.where((grid == min_val))
+    #print('Minimum value is :', min_val, '+-', err_grid[lowest_ixs][0])
+    fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
+    #print(lowest_ixs)
+    if len(lowest_ixs[0]) ==1:
+        for i,key in enumerate(keys):
+            #print(key, ':',param_list[i][lowest_ixs[i]][0], 'us')
+            if i ==0:
+                db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
+            else:
+                db_dict[opt_name][key] = f'{param_list[i][lowest_ixs[i]][0]}*us'
+    else:
+        shortest_length = np.argmin(total_lengths[lowest_ixs])
+        final_idxs = [lowest_ix[shortest_length] for lowest_ix in lowest_ixs]
+        for i,key in enumerate(keys):
+            #print(key, ':',param_list[i][final_idxs[i]], 'us')
+            db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
+    return lowest_ixs, fwhm_dict, db_dict
+
+def interpolate_grid(energies, grids, int_energy, deg):
+    """
+    Interpolates energy vs parameter for every grid point using polynomial.
+    """
+    grid_no = len(grids)
+    grid_shape = grids[0].shape
+    out_grid = np.empty(grid_shape)
+    for index, x in np.ndenumerate(grids[0]):
+        points = np.array([grids[i][index] for i in range(len(grids))])
+        nan_mask = np.isnan(points)
+        nan_mask = nan_mask | (points<0)
+        try:
+            if len(points[~nan_mask])<3:
+                raise IndexError
+            fit_point = np.polynomial.polynomial.polyfit(energies[~nan_mask],points[~nan_mask], deg=deg)
+            out_grid[index] = np.polynomial.polynomial.polyval(int_energy, fit_point)
+        except:
+            out_grid[index] = np.nan
+    return out_grid
+
+def get_best_vals(peak_grids, peak_energies, param, opt_dict):
+    """
+    Finds best filter parameters
+    """
+    dt_grids, error_grids, alpha_grids = get_ctc_grid(peak_grids, param)
+    qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
+    qbb_alphas = interpolate_grid(peak_energies[1:], alpha_grids[1:], 2039.061, 1)
+    ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict)
+    out_grid = {'fwhm':qbb_grid, 'fwhm_err':qbb_errs, 'alphas':qbb_alphas}
+    return qbb_alphas[ixs[0], ixs[1]][0], fwhm_dict, db_dict, out_grid
+
+def match_config(parameters, opt_dicts):
+    """
+    Matches config to parameters
+    """
+    out_dict = {}
+    for opt_dict in opt_dicts:
+        key = list(opt_dict.keys())[0]
+        if key =='cusp':
+            out_dict['cuspEmax'] = opt_dict
+        elif key =='zac':
+            out_dict['zacEmax'] = opt_dict
+        elif key =='etrap':
+            out_dict['trapEmax'] = opt_dict
+    return out_dict
+
+def get_filter_params(files, opt_dicts):
+    """
+    Finds best parameters for filter
+    """
+    full_db_dict = {}
+    full_fwhm_dict = {}
+    full_grids={}
+    parameters =['zacEmax', 'trapEmax', 'cuspEmax']
+    matched_configs = match_config(parameters, opt_dicts)
+    peak_energies = np.array([])
+    for f in files:
+        filename = os.path.basename(f)
+        peak_energy = float(filename.split('.p')[0])
+        peak_energies = np.append(peak_energies, peak_energy)
+    for param in parameters:
+        opt_dict = matched_configs[param]
+        peak_grids = load_grids(files, param)
+        ctc_params= list(peak_grids[0][0,0].keys())
+        ctc_dict = {}
+        
+        for ctc_param in ctc_params:
+            if ctc_param == 'QDrift':
+                alpha, fwhm, db_dict, output_grid = get_best_vals(peak_grids,peak_energies, ctc_param, opt_dict)
+                opt_name = list(opt_dict.keys())[0]
+                db_dict[opt_name].update({'alpha':alpha})
+                
+            else:
+                alpha,fwhm,_ , output_grid = get_best_vals(peak_grids, peak_energies, ctc_param, opt_dict)
+            try:
+                full_grids[param][ctc_param] = output_grid
+            except:
+                full_grids[param] = {ctc_param:output_grid}
+            fwhm.update({'alpha':alpha})
+            ctc_dict[ctc_param] =fwhm
+        full_fwhm_dict[param] = ctc_dict
+        full_db_dict.update(db_dict)
+    return full_db_dict, full_fwhm_dict, full_grids
+
+
+
 def run_splitter(files):
+    """
+    Returns list containing lists of each run
+    """
 
     if isinstance(files, str): files = [files]
     # Expand wildcards

@@ -18,7 +18,18 @@ from pygama.dsp.errors import DSPFatal
 def dsp_preprocess_decay_const(f_raw, dsp_config, database_file, database=None, lh5_tables=None,
                                outputs=None, n_max=np.inf, buffer_len=3200,
                                block_width=16, verbose=1, overwrite=False):
-    
+    """
+    This function calculates the pole zero constant for the input data
+
+    f_raw : str 
+            The raw file to run the macro on
+
+    dsp_config: str
+            Path to the dsp config file, this is a stripped down version which just includes cuts and slope of decay tail
+
+    database_file:  str
+            Path to the output file, the macro will output this as a json file.
+    """
 
     if isinstance(dsp_config, str):
         with open(dsp_config, 'r') as config_file:
@@ -87,8 +98,10 @@ def dsp_preprocess_decay_const(f_raw, dsp_config, database_file, database=None, 
                 # Update the wf_range to reflect the file position
                 e.wf_range = "{}-{}".format(e.wf_range[0]+start_row, e.wf_range[1]+start_row)
                 raise e
-
+    if verbose>0: print("Processed Data")
     cut_dict = generate_cuts(tb_out, parameters = {'bl_mean':4, 'bl_std':4,'bl_slope':4})
+    if verbose>0: 
+        print("Generated Cuts:", cut_dict)
     idxs = get_cut_indexes(tb_out,cut_dict, verbose=False)
     slopes = tb_out['tail_slope'].nda
     get_decay_constant(slopes[idxs],database_file)
