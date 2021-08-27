@@ -618,7 +618,8 @@ Return False when the grid runs out of indices. Otherwise returns True.</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="pygama.dsp.dsp_optimize.get_grid_points">
 <span class="sig-prename descclassname"><span class="pre">pygama.dsp.dsp_optimize.</span></span><span class="sig-name descname"><span class="pre">get_grid_points</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">grid</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/dsp/dsp_optimize.html#get_grid_points"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.dsp.dsp_optimize.get_grid_points" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Generates a list of the indices of all possible grid points</p>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="pygama.dsp.dsp_optimize.run_grid">
@@ -664,17 +665,46 @@ of the grid argument</p>
 <dl class="py function">
 <dt class="sig sig-object py" id="pygama.dsp.dsp_optimize.run_grid_multiprocess_parallel">
 <span class="sig-prename descclassname"><span class="pre">pygama.dsp.dsp_optimize.</span></span><span class="sig-name descname"><span class="pre">run_grid_multiprocess_parallel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tb_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dsp_config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grid</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fom_function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbosity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">processes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fom_kwargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/dsp/dsp_optimize.html#run_grid_multiprocess_parallel"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.dsp.dsp_optimize.run_grid_multiprocess_parallel" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>run one iteration of DSP on tb_data with multiprocessing, can handle multiple grids if they are the same dimensions</p>
+<p>Optionally returns a value for optimization</p>
+<dl class="simple">
+<dt>tb_data<span class="classifier">lh5 Table</span></dt><dd><p>An input table of lh5 data. Typically a selection is made prior to
+sending tb_data to this function: optimization typically doesn't have to
+run over all data</p>
+</dd>
+<dt>dsp_config<span class="classifier">dict</span></dt><dd><p>Specifies the DSP to be performed for this iteration (see
+build_processing_chain()) and the list of output variables to appear in
+the output table</p>
+</dd>
+<dt>grid: pargrid, list of pargrids</dt><dd><p>Grids to run optimization on</p>
+</dd>
+<dt>db_dict<span class="classifier">dict (optional)</span></dt><dd><p>DSP parameters database. See build_processing_chain for formatting info</p>
+</dd>
+<dt>fom_function<span class="classifier">function or None (optional)</span></dt><dd><p>When given the output lh5 table of this DSP iteration, the
+fom_function must return a scalar figure-of-merit value upon which the
+optimization will be based. Should accept verbosity as a second argument.
+If multiple grids provided can either pass one fom to have it run for each grid
+or a list of fom to run different fom on each grid.</p>
+</dd>
+<dt>verbosity<span class="classifier">int (optional)</span></dt><dd><p>verbosity for the processing chain and fom_function calls</p>
+</dd>
+<dt>fom_kwargs:</dt><dd><p>any keyword arguments to pass to the fom,
+if multiple grids given will need to be a list of the fom_kwargs for each grid</p>
+</dd>
+</dl>
+<dl class="simple">
+<dt>figure_of_merit<span class="classifier">float</span></dt><dd><p>If fom_function is not None, returns figure-of-merit value for the DSP iteration</p>
+</dd>
+<dt>tb_out<span class="classifier">lh5 Table</span></dt><dd><p>If fom_function is None, returns the output lh5 table for the DSP iteration</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="pygama.dsp.dsp_optimize.run_grid_point">
 <span class="sig-prename descclassname"><span class="pre">pygama.dsp.dsp_optimize.</span></span><span class="sig-name descname"><span class="pre">run_grid_point</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tb_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dsp_config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fom_function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">iii</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbosity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fom_kwargs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/dsp/dsp_optimize.html#run_grid_point"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.dsp.dsp_optimize.run_grid_point" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="pygama.dsp.dsp_optimize.run_multi_grid">
-<span class="sig-prename descclassname"><span class="pre">pygama.dsp.dsp_optimize.</span></span><span class="sig-name descname"><span class="pre">run_multi_grid</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tb_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dsp_config</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">grids</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fom_function</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">db_dict</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbosity</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">fom_kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/dsp/dsp_optimize.html#run_multi_grid"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.dsp.dsp_optimize.run_multi_grid" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dd><p>Runs a single grid point for the index specified</p>
+</dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="pygama.dsp.dsp_optimize.run_one_dsp">
