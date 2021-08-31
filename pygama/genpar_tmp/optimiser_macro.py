@@ -107,7 +107,10 @@ def set_values(par_values):
     Finds values for grid
     """
     string_values=np.linspace(par_values['start'],par_values['end'],par_values['frequency'])
-    string_values = [ f'{val:.2f}*{par_values["unit"]}' for val in string_values]
+    try:
+        string_values = [ f'{val:.2f}*{par_values["unit"]}' for val in string_values]
+    except:
+        string_values = [ f'{val:.2f}' for val in string_values]
     return string_values
 
 
@@ -322,7 +325,8 @@ def fom_FWHM_fit(tb_in,verbosity, kwarg_dict):
     final_fwhm, final_max, final_err = get_peak_fwhm_with_dt_corr(Energies, 0,0, 
                                                   func, peak=peak, kev_width=kev_width, kev=True)
     return {'fwhm': final_fwhm,
-            'fwhm_err': final_err} 
+            'fwhm_err': final_err,
+            'max':final_max} 
 
 def get_peak_indices(dsp_file, peak_val, verbose=True):
     """
