@@ -387,10 +387,23 @@ def event_selection(raw_file, dsp_config, db_dict, peaks_keV, peak_idx, kev_widt
     dEuc = 1/guess_keV
     hist, bins, var = pgh.get_hist(rough_energy, range=(Euc_min, Euc_max), dx=dEuc)
     detected_peaks_locs, detected_peaks_keV, roughpars = pgc.hpge_find_E_peaks(hist, bins, var, peaks_keV)
-    peak_loc = detected_peaks_locs[peak_idx]
-    rough_adc_to_kev = roughpars[0]
-    e_lower_lim = peak_loc - (1.1*kev_width[0])/rough_adc_to_kev
-    e_upper_lim = peak_loc + (1.1*kev_width[1])/rough_adc_to_kev
+    try:
+        if peak not in detected_peaks_keV:
+            raise ValueError
+        detected_peak_idx = np.where(detected_peaks_keV == peak)[0]
+        peak_loc = detected_peaks_locs[detected_peak_idx]
+        print(detected_peaks_keV)
+        print(detected_peaks_locs)
+        print(f'{peak} peak found at {peak_loc}')
+        rough_adc_to_kev = roughpars[0]
+        e_lower_lim = peak_loc - (1.1*kev_width[0])/rough_adc_to_kev
+        e_upper_lim = peak_loc + (1.1*kev_width[1])/rough_adc_to_kev
+    except:
+        print("Peak not found attempting to use rough parameters")
+        peak_loc = ((peak- roughpars[1]) / roughpars[0])
+        rough_adc_to_kev = roughpars[0]
+        e_lower_lim = peak_loc - (1.5*kev_width[0])/rough_adc_to_kev
+        e_upper_lim = peak_loc + (1.5*kev_width[1])/rough_adc_to_kev
     print(e_lower_lim, e_upper_lim)
     e_mask = (rough_energy>e_lower_lim)&(rough_energy<e_upper_lim)
     e_idxs = np.where(e_mask)[0]
@@ -494,13 +507,15 @@ def interpolate_energy(peak_energies, grids, error_grids, energy):
         points = np.array([grids[i][index] for i in range(len(grids))])
         err_points = np.array([error_grids[i][index] for i in range(len(grids))])
         nan_mask = np.isnan(points)
-        nan_mask = nan_mask | (points<0)| (0.1*points<err_points)
+        nan_mask = nan_mask | (points<0) | (0.05*points<err_points)
         try:
-            if len(points[nan_mask])>0 or nan_mask[-1] == True:
+            if len(points[nan_mask])>2:
                 raise ValueError
-            param_guess  = [0.2,0.001]
-            param_bounds = (0, [10., 1.])
-            fit_pars, fit_covs = curve_fit(fwhm_slope, peak_energies,points, sigma=err_points, 
+            elif nan_mask[-1] == True or nan_mask[-2] == True:
+                raise ValueError
+            param_guess  = [0.2,0.001]#,0.000001
+            param_bounds = (0, [10., 1. ])#,0.1
+            fit_pars, fit_covs = curve_fit(fwhm_slope, peak_energies[~nan_mask],points[~nan_mask], sigma=err_points[~nan_mask], 
                                p0=param_guess, bounds=param_bounds, absolute_sigma=True)
             fit_qbb = fwhm_slope(energy,*fit_pars)
             sderrs = np.sqrt(np.diag(fit_covs))
@@ -535,7 +550,11 @@ def find_lowest_grid_point_save(grid, err_grid, opt_dict):
     min_val = np.nanmin(grid)
     lowest_ixs = np.where((grid == min_val))
     #print('Minimum value is :', min_val, '+-', err_grid[lowest_ixs][0])
-    fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
+    try:
+        fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
+    except:
+        fwhm_dict =  {'fwhm': np.nan, 'fwhm_err': np.nan}
+        return np.nan, fwhm_dict, np.nan
     #print(lowest_ixs)
     if len(lowest_ixs[0]) ==1:
         for i,key in enumerate(keys):
@@ -581,7 +600,11 @@ def get_best_vals(peak_grids, peak_energies, param, opt_dict):
     qbb_alphas = interpolate_grid(peak_energies[1:], alpha_grids[1:], 2039.061, 1)
     ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict)
     out_grid = {'fwhm':qbb_grid, 'fwhm_err':qbb_errs, 'alphas':qbb_alphas}
-    return qbb_alphas[ixs[0], ixs[1]][0], fwhm_dict, db_dict, out_grid
+    try:
+        alphas = qbb_alphas[ixs[0], ixs[1]][0]
+    except:
+        alphas = np.nan
+    return alphas, fwhm_dict, db_dict, out_grid
 
 def match_config(parameters, opt_dicts):
     """

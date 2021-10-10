@@ -8,7 +8,7 @@ import pygama.lh5 as lh5
 import matplotlib.pyplot as plt
 import glob
 
-def generate_cuts(data, parameters):
+def generate_cuts(data, parameters, verbose=False):
     """
     Finds double sided cut boundaries for a file for the parameters specified 
     
@@ -31,7 +31,7 @@ def generate_cuts(data, parameters):
         lower_bound = guess_pars[0]-10*guess_pars[1]
         upper_bound = guess_pars[0]+10*guess_pars[1]
         counts, bins, var = pgh.get_hist(par_array,bins = 1000, range = (lower_bound, upper_bound))
-        pars, cov = pgf.fit_hist(pgf.gauss, counts, bins, var, guess = guess_pars, bounds = get_bounds(*guess_pars))
+        pars, cov = pgf.fit_hist(pgf.gauss, counts, bins, var, guess = guess_pars, bounds = get_bounds(*guess_pars, verbose=verbose))
         mean,std,area = pars
         if isinstance(num_sigmas, (int, float)):
             num_sigmas_left = num_sigmas
@@ -63,7 +63,7 @@ def compare_dicts(dict1, dict2):
                 output_dict[par] = 'Energy Dep'
     return output_dict
 
-def check_energy_dep(data, parameters, energy_param):
+def check_energy_dep(data, parameters, energy_param, verbose=False):
     """
     Checks energy dependence of cut parameters by calculating cut values in 2 windows
     """
@@ -77,21 +77,21 @@ def check_energy_dep(data, parameters, energy_param):
     for key in parameters.keys():
         wind_data1[key] = data[key][window1]
         wind_data2[key] = data[key][window2]
-    cut_dict1 = generate_cuts(wind_data1, parameters)
-    cut_dict2 = generate_cuts(wind_data2, parameters)
+    cut_dict1 = generate_cuts(wind_data1, parameters, verbose=verbose)
+    cut_dict2 = generate_cuts(wind_data2, parameters, verbose=verbose)
     out_dict = compare_dicts(cut_dict1, cut_dict2)
     for pars in out_dict.keys():
         out_dict[pars] = {'Energy Dep':{'Cuts Specified':parameters[pars]}} 
     return out_dict
 
-def get_bounds(mean, sigma, area):
+def get_bounds(mean, sigma, area, verbose=False):
     """
     Calculates bounds for gaussian peak fitting
     """
     if mean >0:
         mean_lims = [0.75*mean, 1.25*mean]
     else:
-        print("mean<0")
+        if verbose:print("mean<0")
         mean_lims = [1.25*mean, 0.75*mean]
     sigma_lims = [0,10*sigma]
     area_lims = [0,2*area]
@@ -144,7 +144,7 @@ def get_cut_boundaries(file_path, cut_file, lh5_group, parameters = {'bl_mean':4
         json.dump(cut_dict,fp, indent=4)
     return
 
-def get_energy_dep(data, parameter, n_sigmas=4, energy_param='trapEmax', n_windows=10):
+def get_energy_dep(data, parameter, n_sigmas=4, energy_param='trapEmax', n_windows=10, verbose=False):
     
     energy = data[energy_param]
     n_events = len(energy)
@@ -165,7 +165,7 @@ def get_energy_dep(data, parameter, n_sigmas=4, energy_param='trapEmax', n_windo
     for i,window in enumerate(windows):
         win_data = data[parameter][window]
         if len(win_data)>0.02*n_events and len(win_data)>1000:
-            out_dict = generate_cuts({parameter:win_data}, par_dict)
+            out_dict = generate_cuts({parameter:win_data}, par_dict, verbose=verbose)
             uppers.append(out_dict[parameter]['Upper Boundary'])
             lowers.append(out_dict[parameter]['Lower Boundary'])
             final_energies.append(energy_midpoints[i])
@@ -195,7 +195,7 @@ def get_cut_indexes(all_data, cut_dict, energy_param = 'trapEmax', verbose=False
         if 'Energy Dep' in cut_dict[cut].keys():
             energy_midpoints, uppers, lowers = get_energy_dep(all_data, cut, 
                                                               n_sigmas= cut_dict[cut]['Energy Dep']['Cuts Specified'],
-                                                               energy_param= energy_param, n_windows=10)
+                                                               energy_param= energy_param, n_windows=10, verbose=verbose)
             pars = np.polynomial.polynomial.polyfit(energy_midpoints, uppers, deg=2)
             pars2 = np.polynomial.polynomial.polyfit(energy_midpoints, lowers, deg=2)
             upper_bounds = np.polynomial.polynomial.polyval(all_data['trapEmax'], pars)
@@ -217,7 +217,7 @@ def get_cut_indexes(all_data, cut_dict, energy_param = 'trapEmax', verbose=False
     return indexes
 
 def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean':4,'bl_std':4, 'pz_std':4}, 
-                      energy_param = 'trapEmax',verbose=True):
+                      energy_param = 'trapEmax',verbose=False):
 
     """
 
@@ -256,8 +256,8 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
     if cut_file is None:
 
         data = lh5.load_nda(files[0], all_params, lh5_group)
-        cut_dict = generate_cuts(data, cut_parameters)
-        energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax')
+        cut_dict = generate_cuts(data, cut_parameters, verbose=verbose)
+        energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax', verbose=verbose)
         cut_dict.update(energy_dep_dict)
         print("Generated Cut Dictionary")
         if verbose: print(cut_dict)
@@ -271,18 +271,18 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
                 print ("Files not all in same run")
                 run1 = det_run
                 data = lh5.load_nda(file, all_params, lh5_group)
-                cut_dict = generate_cuts(data, cut_parameters)
-                energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax')
+                cut_dict = generate_cuts(data, cut_parameters, verbose=verbose)
+                energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax', verbose=verbose)
                 cut_dict.update(energy_dep_dict)
                 print(cut_dict)
 
             par_data = lh5.load_nda(file, all_params, lh5_group, verbose=verbose)
-            idx = get_cut_indexes(par_data, cut_dict, energy_param, verbose)
+            idx = get_cut_indexes(par_data, cut_dict, energy_param, verbose=verbose)
             idxs.append(idx)
 
     else:
         if os.path.isfile(cut_file) == False:
-            get_cut_boundaries(files[0], cut_file, lh5_group, energy_param = energy_param, parameters= cut_parameters)
+            get_cut_boundaries(files[0], cut_file, lh5_group, energy_param = energy_param, parameters= cut_parameters, verbose=verbose)
         with open(cut_file,'r') as f:
             full_cut_dict = json.load(f)
         try:
@@ -291,7 +291,7 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
                 print('Loaded Cut Dictionary')
         except KeyError:
             print("Cuts haven't been calculated yet, getting cut boundaries")
-            get_cut_boundaries(files[0], cut_file, lh5_group, energy_param = energy_param, parameters=cut_parameters)
+            get_cut_boundaries(files[0], cut_file, lh5_group, energy_param = energy_param, parameters=cut_parameters, verbose=verbose)
             with open(cut_file,'r') as f:
                 full_cut_dict = json.load(f)
                 cut_dict = full_cut_dict[run1]
@@ -312,14 +312,14 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
                     cut_dict = full_cut_dict[run1]
                 except KeyError:
                     print("Cuts haven't been calculated yet, getting cut boundaries")
-                    get_cut_boundaries(files[0], cut_file, lh5_group, energy_param = energy_param, parameters=cut_parameters)
+                    get_cut_boundaries(files[0], cut_file, lh5_group, energy_param = energy_param, parameters=cut_parameters, verbose=verbose)
                     with open(cut_file,'r') as f:
                         full_cut_dict = json.load(f)
                         cut_dict = full_cut_dict[run1]
             keys = list(cut_dict.keys())
             keys.append(energy_param)
             par_data = lh5.load_nda(file, keys, lh5_group, verbose=verbose)
-            idx = get_cut_indexes(par_data, cut_dict, energy_param, verbose)
+            idx = get_cut_indexes(par_data, cut_dict, energy_param, verbose=verbose)
             idxs.append(idx)
 
     mask = np.concatenate(idxs)
