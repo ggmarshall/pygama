@@ -80,6 +80,7 @@
 <span class="sd">    do a binned fit to a histogram (nonlinear least squares).</span>
 <span class="sd">    can either do a poisson log-likelihood fit (jason&#39;s fave) or</span>
 <span class="sd">    use curve_fit w/ an arbitrary function.</span>
+
 <span class="sd">    - hist, bins, var : as in return value of pygama.histograms.get_hist()</span>
 <span class="sd">    - guess : initial parameter guesses. Should be optional -- we can auto-guess</span>
 <span class="sd">              for many common functions. But not yet implemented.</span>
@@ -88,6 +89,7 @@
 <span class="sd">                  bounds to make sure that func does not go negative over the</span>
 <span class="sd">                  x-range of the histogram.</span>
 <span class="sd">    - method, bounds : options to pass to scipy.optimize.minimize</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    ------</span>
 <span class="sd">    coeff, cov_matrix : tuple(array, matrix)</span>
@@ -133,6 +135,7 @@
 
 <div class="viewcode-block" id="goodness_of_fit"><a class="viewcode-back" href="../../../pygama.analysis.html#pygama.analysis.peak_fitting.goodness_of_fit">[docs]</a><span class="k">def</span> <span class="nf">goodness_of_fit</span><span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">pars</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;var&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Compute chisq and dof of fit</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    hist, bins, var : array, array, array or None</span>
@@ -146,6 +149,7 @@
 <span class="sd">        &#39;var&#39;: user passes in the variances in var (must not have zeros)</span>
 <span class="sd">        &#39;Pearson&#39;: use func (hist must contain integer counts)</span>
 <span class="sd">        &#39;Neyman&#39;: use hist (hist must contain integer counts and no zeros)</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    chisq : float</span>
@@ -276,17 +280,21 @@
                          <span class="n">poissonLL</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inflate_errors</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">gof_method</span><span class="o">=</span><span class="s1">&#39;var&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Get the max, mode, and width of a peak based on gauss fit near the max</span>
+
 <span class="sd">    Returns the parameters of a gaussian fit over n_bins in the vicinity of the</span>
 <span class="sd">    maximum of the hist (or the max near mode_guess, if provided). This is</span>
 <span class="sd">    equivalent to a Taylor expansion around the peak maximum because near its</span>
 <span class="sd">    maximum a Gaussian can be approximated by a 2nd-order polynomial in x:</span>
+
 <span class="sd">    A exp[ -(x-mu)^2 / 2 sigma^2 ] ~= A [ 1 - (x-mu)^2 / 2 sigma^2 ]</span>
 <span class="sd">                                    = A - (1/2!) (A/sigma^2) (x-mu)^2</span>
+
 <span class="sd">    The advantage of using a gaussian over a polynomial directly is that the</span>
 <span class="sd">    gaussian parameters are the ones we care about most for a peak, whereas for</span>
 <span class="sd">    a poly we would have to extract them after the fit, accounting for</span>
 <span class="sd">    covariances. The guassian also better approximates most peaks farther down</span>
 <span class="sd">    the peak. However, the gauss fit is nonlinear and thus less stable.</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    hist : array-like</span>
@@ -310,6 +318,7 @@
 <span class="sd">        if it is greater than 1</span>
 <span class="sd">    gof_method : str (optional)</span>
 <span class="sd">        method flag for goodness_of_fit</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    (pars, cov) : tuple (array, matrix)</span>
@@ -351,9 +360,11 @@
 
 <div class="viewcode-block" id="gauss_mode_max"><a class="viewcode-back" href="../../../pygama.analysis.html#pygama.analysis.peak_fitting.gauss_mode_max">[docs]</a><span class="k">def</span> <span class="nf">gauss_mode_max</span><span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode_guess</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">poissonLL</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inflate_errors</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">gof_method</span><span class="o">=</span><span class="s1">&#39;var&#39;</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Alias for gauss_mode_width_max that just returns the max and mode</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    --------</span>
 <span class="sd">    See gauss_mode_width_max</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    (pars, cov) : tuple (array, matrix)</span>
@@ -362,6 +373,7 @@
 <span class="sd">            maximum : the estimated maximum value of the peak</span>
 <span class="sd">        cov : 2x2 matrix of floats</span>
 <span class="sd">            The covariance matrix for the 2 parameters in pars</span>
+
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; import pygama.analysis.histograms as pgh</span>
@@ -378,8 +390,10 @@
 
 <div class="viewcode-block" id="taylor_mode_max"><a class="viewcode-back" href="../../../pygama.analysis.html#pygama.analysis.peak_fitting.taylor_mode_max">[docs]</a><span class="k">def</span> <span class="nf">taylor_mode_max</span><span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode_guess</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">poissonLL</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Get the max and mode of a peak based on Taylor exp near the max</span>
+
 <span class="sd">    Returns the amplitude and position of a peak based on a poly fit over n_bins</span>
 <span class="sd">    in the vicinity of the maximum of the hist (or the max near mode_guess, if provided)</span>
+
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    hist : array-like</span>
@@ -396,6 +410,7 @@
 <span class="sd">    n_bins : int</span>
 <span class="sd">        The number of bins (including the max bin) to be used in the fit. Also</span>
 <span class="sd">        used for searching for a max near mode_guess</span>
+
 <span class="sd">    Returns</span>
 <span class="sd">    -------</span>
 <span class="sd">    (pars, cov) : tuple (array, matrix)</span>
@@ -404,6 +419,7 @@
 <span class="sd">            maximum : the estimated maximum value of the peak</span>
 <span class="sd">        cov : 2x2 matrix of floats</span>
 <span class="sd">            The covariance matrix for the 2 parameters in pars</span>
+
 <span class="sd">    Examples</span>
 <span class="sd">    --------</span>
 <span class="sd">    &gt;&gt;&gt; import pygama.analysis.histograms as pgh</span>
@@ -730,6 +746,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A Fit function exclusevly for a 241Am 99keV and 103keV lines situation</span>
 <span class="sd">    Consists of</span>
+
 <span class="sd">     - three gaussian peaks (two lines + one bkg line in between)</span>
 <span class="sd">     - two steps (for the two lines)</span>
 <span class="sd">     - two tails (for the two lines)</span>
@@ -756,6 +773,7 @@
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    A Fit function exclusevly for a 133Ba 81keV peak situation</span>
 <span class="sd">    Consists of</span>
+
 <span class="sd">     - two gaussian peaks (two lines)</span>
 <span class="sd">     - one step</span>
 <span class="sd">     &quot;&quot;&quot;</span>
