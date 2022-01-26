@@ -698,6 +698,14 @@ so rewrite it for backwards compatibility</p>
 </dd></dl>
 
 <dl class="py function">
+<dt class="sig sig-object py" id="pygama.io.orcadaq.get_auxhw_info">
+<span class="sig-prename descclassname"><span class="pre">pygama.io.orcadaq.</span></span><span class="sig-name descname"><span class="pre">get_auxhw_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orca_class_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-</span> <span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/io/orcadaq.html#get_auxhw_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.io.orcadaq.get_auxhw_info" title="Permalink to this definition"></a></dt>
+<dd><p>returns a list with all the info from the AuxHw table of the header
+with name orca_class_name.  optionally, if unique_id &gt;= 0 only return
+the object for that Orca unique id number.</p>
+</dd></dl>
+
+<dl class="py function">
 <dt class="sig sig-object py" id="pygama.io.orcadaq.get_card">
 <span class="sig-prename descclassname"><span class="pre">pygama.io.orcadaq.</span></span><span class="sig-name descname"><span class="pre">get_card</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ccc</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/io/orcadaq.html#get_card"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.io.orcadaq.get_card" title="Permalink to this definition"></a></dt>
 <dd></dd></dl>
@@ -753,6 +761,14 @@ Outputs:
 <span class="sig-prename descclassname"><span class="pre">pygama.io.orcadaq.</span></span><span class="sig-name descname"><span class="pre">get_object_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orca_class_name</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/io/orcadaq.html#get_object_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.io.orcadaq.get_object_info" title="Permalink to this definition"></a></dt>
 <dd><p>returns a list with all info from the header for each card with name
 orca_class_name.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.io.orcadaq.get_readout_info">
+<span class="sig-prename descclassname"><span class="pre">pygama.io.orcadaq.</span></span><span class="sig-name descname"><span class="pre">get_readout_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">header_dict</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orca_class_name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">unique_id</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-</span> <span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/io/orcadaq.html#get_readout_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.io.orcadaq.get_readout_info" title="Permalink to this definition"></a></dt>
+<dd><p>retunrs a list with all the readout list info from the header with name
+orca_class_name.  optionally, if unique_id &gt;= 0 only return the list for
+that Orca unique id number.</p>
 </dd></dl>
 
 <dl class="py function">
