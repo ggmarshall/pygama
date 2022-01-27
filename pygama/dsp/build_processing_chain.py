@@ -259,7 +259,7 @@ def build_processing_chain(lh5_in, dsp_config, db_dict = None,
                 else:
                     proc_chain._clk = clk
         else:
-            print("I don't know what to do with " + input_par + ". Building output without it!")
+            print("I don't know what to do with " + copy_par + ". Building output without it!")
     
     # finally, add the output buffers to lh5_out and the proc chain
     for out_par in out_par_list:
