@@ -43,12 +43,12 @@
 <li class="toctree-l2 current"><a class="reference internal" href="pygama.html#subpackages">Subpackages</a><ul class="current">
 <li class="toctree-l3 current"><a class="current reference internal" href="#">pygama.analysis package</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#submodules">Submodules</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#pygama-analysis-calibration-module">pygama.analysis.calibration module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#pygama-analysis-data-cleaning-module">pygama.analysis.data_cleaning module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis.calibration">pygama.analysis.calibration module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis.data_cleaning">pygama.analysis.data_cleaning module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis.datagroup">pygama.analysis.datagroup module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis.histograms">pygama.analysis.histograms module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis.metadata">pygama.analysis.metadata module</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#pygama-analysis-peak-fitting-module">pygama.analysis.peak_fitting module</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis.peak_fitting">pygama.analysis.peak_fitting module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#pygama-analysis-pulse-shape-analysis-module">pygama.analysis.pulse_shape_analysis module</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#module-pygama.analysis">Module contents</a></li>
 </ul>
@@ -96,11 +96,425 @@
 <section id="submodules">
 <h2>Submodules<a class="headerlink" href="#submodules" title="Permalink to this headline"></a></h2>
 </section>
-<section id="pygama-analysis-calibration-module">
-<h2>pygama.analysis.calibration module<a class="headerlink" href="#pygama-analysis-calibration-module" title="Permalink to this headline"></a></h2>
+<section id="module-pygama.analysis.calibration">
+<span id="pygama-analysis-calibration-module"></span><h2>pygama.analysis.calibration module<a class="headerlink" href="#module-pygama.analysis.calibration" title="Permalink to this headline"></a></h2>
+<p>routines for automatic calibration.
+- peakdet (useful to find maxima in an array without taking derivative)
+- get_most_prominent_peaks (find by looking for spikes in spectrum derivative)
+- match_peaks (identify peaks based on ratios between known gamma energies)
+- calibrate_tl208 (main routine -- fits multiple peaks w/ Radford peak shape)
+- get_calibration_energies (a good place to put pk energies)</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.calibrate_tl208">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">calibrate_tl208</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">energy_series</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cal_peaks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plotFigure</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#calibrate_tl208"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.calibrate_tl208" title="Permalink to this definition"></a></dt>
+<dd><p>energy_series: array of energies we want to calibrate
+cal_peaks: array of peaks to fit
+1.) we find the 2614 peak by looking for the tallest peak at &gt;0.1 the max adc value
+2.) fit that peak to get a rough guess at a calibration to find other peaks with
+3.) fit each peak in peak_energies
+4.) do a linear fit to the peak centroids to find a calibration</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_calibration_energies">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_calibration_energies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cal_type</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_calibration_energies"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_calibration_energies" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_hpge_E_peak_bounds">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_hpge_E_peak_bounds</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars_guess</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_hpge_E_peak_bounds"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_hpge_E_peak_bounds" title="Permalink to this definition"></a></dt>
+<dd><p>Returns: Sequence of (min, max) pairs for each element in x.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_hpge_E_peak_par_guess">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_hpge_E_peak_par_guess</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_hpge_E_peak_par_guess"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_hpge_E_peak_par_guess" title="Permalink to this definition"></a></dt>
+<dd><p>Get parameter guesses for func fit to peak in hist
+:param hist: Histogram of uncalibrated energies, see pgh.get_hist(). Should be</p>
+<blockquote>
+<div><p>windowed around the peak.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bins</strong> (<em>array</em><em>, </em><em>array</em><em>, </em><em>array</em>) -- Histogram of uncalibrated energies, see pgh.get_hist(). Should be
+windowed around the peak.</p></li>
+<li><p><strong>var</strong> (<em>array</em><em>, </em><em>array</em><em>, </em><em>array</em>) -- Histogram of uncalibrated energies, see pgh.get_hist(). Should be
+windowed around the peak.</p></li>
+<li><p><strong>func</strong> (<em>function</em>) -- The function to be fit to the peak in the (windowed) hist</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_i_local_extrema">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_i_local_extrema</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_i_local_extrema"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_i_local_extrema" title="Permalink to this definition"></a></dt>
+<dd><p>Get lists of indices of the local maxima and minima of data
+The &quot;local&quot; extrema are those maxima / minima that have heights / depths of
+at least delta.
+Converted from MATLAB script at: <a class="reference external" href="http://billauer.co.il/peakdet.html">http://billauer.co.il/peakdet.html</a>
+:param data: the array of data within which extrema will be found
+:type data: array-like
+:param delta: the absolute level by which data must vary (in one direction) about an</p>
+<blockquote>
+<div><p>extremum in order for it to be tagged</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><strong>imaxes, imins</strong> -- A 2-tuple containing arrays of variable length that hold the indices of
+the identified local maxima (first tuple element) and minima (second
+tuple element)</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>2-tuple ( array, array )</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_i_local_maxima">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_i_local_maxima</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_i_local_maxima"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_i_local_maxima" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_i_local_minima">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_i_local_minima</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">delta</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_i_local_minima"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_i_local_minima" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.get_most_prominent_peaks">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">get_most_prominent_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">energySeries</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xhi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xpb</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_num_peaks</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">inf</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">test</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#get_most_prominent_peaks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.get_most_prominent_peaks" title="Permalink to this definition"></a></dt>
+<dd><p>find the most prominent peaks in a spectrum by looking for spikes in derivative of spectrum
+energySeries: array of measured energies
+max_num_peaks = maximum number of most prominent peaks to find
+return a histogram around the most prominent peak in a spectrum of a given percentage of width</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_E_calibration">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_E_calibration</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">E_uncal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peaks_keV</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">guess_keV</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deg=0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uncal_is_int=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">range_keV=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">funcs=&lt;function</span> <span class="pre">gauss_step&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose=True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_E_calibration"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_E_calibration" title="Permalink to this definition"></a></dt>
+<dd><p>Calibrate HPGe data to a set of known peaks
+:param E_uncal: unbinned energy data to be calibrated
+:type E_uncal: array
+:param peaks_keV: list of peak energies to be fit to. Each must be in the data
+:type peaks_keV: array
+:param guess_keV: a rough initial guess at the conversion factor from E_uncal to keV. Must</p>
+<blockquote>
+<div><p>be positive</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>deg</strong> (<em>non-negative int</em>) -- degree of the polynomial for the E_cal function E_keV = poly(E_uncal).
+deg = 0 corresponds to a simple scaling E_keV = scale * E_uncal.
+Otherwise follows the convention in np.polyfit</p></li>
+<li><p><strong>uncal_is_int</strong> (<em>bool</em>) -- if True, attempts will be made to avoid picket-fencing when binning
+E_uncal</p></li>
+<li><p><strong>range_keV</strong> (<em>float</em><em>, </em><em>tuple</em><em>, </em><em>array of floats</em><em>, or </em><em>array of tuples of floats</em>) -- ranges around which the peak fitting is performed
+if tuple(s) are supplied, they provide the left and right ranges</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul>
+<li><p><strong>pars, cov</strong> (<em>array, 2D array</em>) -- array of calibration function parameters and their covariances. The form
+of the function is E_keV = poly(E_uncal). Assumes poly() is
+overwhelmingly dominated by the linear term. pars follows convention in
+np.polyfit unless deg=0, in which case it is the (lone) scale factor</p></li>
+<li><p><strong>results</strong> (<em>dict with the following elements</em>) --</p>
+<dl class="simple">
+<dt>'detected_peaks_locs', 'detected_peaks_keV'<span class="classifier">array, array</span></dt><dd><p>array of rough uncalibrated/calibrated energies at which the fit peaks were
+found in the initial peak search</p>
+</dd>
+<dt>'pt_pars', 'pt_cov'<span class="classifier">list of (array), list of (2D array)</span></dt><dd><p>arrays of gaussian parameters / covariances fit to the peak tops in
+the first refinement</p>
+</dd>
+<dt>'pt_cal_pars', 'pt_cal_cov'<span class="classifier">array, 2D array</span></dt><dd><p>array of calibraiton parameters E_uncal = poly(E_keV) for fit to
+means of gausses fit to tops of each peak</p>
+</dd>
+<dt>'pk_pars', 'pk_cov', 'pk_binws', 'pk_ranges'<span class="classifier">list of (array), list of (2D array), list, list of (array)</span></dt><dd><p>the best fit parameters, covariances, bin width and energy range for the local fit to each peak</p>
+</dd>
+<dt>'pk_cal_pars', 'pk_cal_cov'<span class="classifier">array, 2D array</span></dt><dd><p>array of calibraiton parameters E_uncal = poly(E_keV) for fit to
+means from full peak fits</p>
+</dd>
+<dt>'fwhms', 'dfwhms'<span class="classifier">array, array</span></dt><dd><p>the numeric fwhms and their uncertainties for each peak.</p>
+</dd>
+</dl>
+</li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_find_E_peaks">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_find_E_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peaks_keV</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Etol_keV</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var_zero</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_find_E_peaks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_find_E_peaks" title="Permalink to this definition"></a></dt>
+<dd><p>Find uncalibrated E peaks whose E spacing matches the pattern in peaks_keV
+Note: the specialization here to units &quot;keV&quot; in peaks and Etol is
+unnecessary. However it is kept so that the default value for Etol_keV has
+an unambiguous interpretation.
+:param hist: Histogram of uncalibrated energies, see pgh.get_hist()</p>
+<blockquote>
+<div><p>var cannot contain any zero entries.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bins</strong> (<em>array</em><em>, </em><em>array</em><em>, </em><em>array</em>) -- Histogram of uncalibrated energies, see pgh.get_hist()
+var cannot contain any zero entries.</p></li>
+<li><p><strong>var</strong> (<em>array</em><em>, </em><em>array</em><em>, </em><em>array</em>) -- Histogram of uncalibrated energies, see pgh.get_hist()
+var cannot contain any zero entries.</p></li>
+<li><p><strong>peaks_keV</strong> (<em>array</em>) -- Energies of peaks to search for (in keV)</p></li>
+<li><p><strong>n_sigma</strong> (<em>float</em>) -- Threshold for detecting a peak in sigma (i.e. sqrt(var))</p></li>
+<li><p><strong>deg</strong> (<em>int</em>) -- deg arg to pass to poly_match</p></li>
+<li><p><strong>Etol_keV</strong> (<em>float</em>) -- absolute tolerance in energy for matching peaks</p></li>
+<li><p><strong>var_zero</strong> (<em>float</em>) -- number used to replace zeros of var to avoid divide-by-zero in
+hist/sqrt(var). Default value is 1. Usually when var = 0 its because
+hist = 0, and any value here is fine.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>detected_peak_locations</strong> (<em>list</em>) -- list of uncalibrated energies of detected peaks</p></li>
+<li><p><strong>detected_peak_energies</strong> (<em>list</em>) -- list of calibrated energies of detected peaks</p></li>
+<li><p><strong>pars</strong> (<em>list of floats</em>) -- the parameters for poly(peaks_uncal) = peaks_keV (polyfit convention)</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_fit_E_cal_func">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_fit_E_cal_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mus</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu_vars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Es_keV</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">E_scale_pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_fit_E_cal_func"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_fit_E_cal_func" title="Permalink to this definition"></a></dt>
+<dd><p>Find best fit of E = poly(mus +/- sqrt(mu_vars))
+This is an inversion of hpge_fit_E_scale.
+E uncertainties are computed from mu_vars / dmu/dE where mu = poly(E) is the
+E_scale function
+:param mus: uncalibrated energies
+:type mus: array
+:param mu_vars: variances in the mus
+:type mu_vars: array
+:param Es_keV: energies to fit to, in keV
+:type Es_keV: array
+:param k: hpge_fit_E_scale)
+:param deg: degree for energy scale fit. deg=0 corresponds to a simple scaling</p>
+<blockquote>
+<div><p>mu = scale * E. Otherwise deg follows the definition in np.polyfit</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>pars</strong> (<em>array</em>) -- parameters of the best fit. Follows the convention in np.polyfit</p></li>
+<li><p><strong>cov</strong> (<em>2D array</em>) -- covariance matrix for the best fit parameters.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_fit_E_peak_tops">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_fit_E_peak_tops</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peak_locs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_to_fit</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">7</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poissonLL</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inflate_errors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gof_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'var'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_fit_E_peak_tops"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_fit_E_peak_tops" title="Permalink to this definition"></a></dt>
+<dd><p>Fit gaussians to the tops of peaks
+:param hist: Histogram of uncalibrated energies, see pgh.get_hist()
+:type hist: array, array, array
+:param bins: Histogram of uncalibrated energies, see pgh.get_hist()
+:type bins: array, array, array
+:param var: Histogram of uncalibrated energies, see pgh.get_hist()
+:type var: array, array, array
+:param peak_locs: locations of peaks in hist. Must be accurate two within +/- 2*n_to_fit
+:type peak_locs: array
+:param n_to_fit: number of hist bins near the peak top to include in the gaussian fit
+:type n_to_fit: int
+:param poissonLL: Flag passed to gauss_mode_width_max()
+:type poissonLL: bool (optional)
+:param inflate_errors: Flag passed to gauss_mode_width_max()
+:type inflate_errors: bool (optional)
+:param gof_method: method flag passed to gauss_mode_width_max()
+:type gof_method: str (optional)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>pars_list</strong> (<em>list of array</em>) -- a list of best-fit parameters (mode, sigma, max) for each peak-top fit</p></li>
+<li><p><strong>cov_list</strong> (<em>list of 2D arrays</em>) -- a list of covariance matrices for each pars</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_fit_E_peaks">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_fit_E_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">E_uncal</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode_guesses</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wwidths</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins=50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">funcs=&lt;function</span> <span class="pre">gauss_step&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">uncal_is_int=False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">getbounds=True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_fit_E_peaks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_fit_E_peaks" title="Permalink to this definition"></a></dt>
+<dd><p>Fit gaussians to the tops of peaks
+:param E_uncal: unbinned energy data to be fit
+:type E_uncal: array
+:param mode_guesses: array of guesses for modes of each peak
+:type mode_guesses: array
+:param wwidths: array of widths to use for the fit windows (in units of E_uncal),</p>
+<blockquote>
+<div><p>typically on the order of 10 sigma where sigma is the peak width</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_bins</strong> (<em>int</em><em> or </em><em>array of ints</em>) -- array of number of bins to use for the fit window histogramming</p></li>
+<li><p><strong>funcs</strong> (<em>function</em><em> or </em><em>array of functions</em>) -- funcs to be used to fit each region</p></li>
+<li><p><strong>uncal_is_int</strong> (<em>bool</em>) -- if True, attempts will be made to avoid picket-fencing when binning
+E_uncal</p></li>
+<li><p><strong>getbounds</strong> (<em>bool</em><em> or </em><em>array of bools determining whether to pass bounds</em>) -- to scipy.optimize.minimize via pgf.fit_hist for each peak</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>pars</strong> (<em>list of array</em>) -- a list of best-fit parameters for each peak fit</p></li>
+<li><p><strong>covs</strong> (<em>list of 2D arrays</em>) -- a list of covariance matrices for each pars</p></li>
+<li><p><strong>binwidths</strong> (<em>list</em>) -- a list of bin widths used for each peak fit</p></li>
+<li><p><strong>ranges</strong> (<em>list of array</em>) -- a list of [Euc_min, Euc_max] used for each peak fit</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_fit_E_scale">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_fit_E_scale</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mus</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu_vars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Es_keV</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_fit_E_scale"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_fit_E_scale" title="Permalink to this definition"></a></dt>
+<dd><p>Find best fit of poly(E) = mus +/- sqrt(mu_vars)
+Compare to hpge_fit_E_cal_func which fits for E = poly(mu)
+:param mus: uncalibrated energies
+:type mus: array
+:param mu_vars: variances in the mus
+:type mu_vars: array
+:param Es_keV: energies to fit to, in keV
+:type Es_keV: array
+:param deg: degree for energy scale fit. deg=0 corresponds to a simple scaling</p>
+<blockquote>
+<div><p>mu = scale * E. Otherwise deg follows the definition in np.polyfit</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>pars</strong> (<em>array</em>) -- parameters of the best fit. Follows the convention in np.polyfit</p></li>
+<li><p><strong>cov</strong> (<em>2D array</em>) -- covariance matrix for the best fit parameters.</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.hpge_get_E_peaks">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">hpge_get_E_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cal_pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">peaks_keV</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Etol_keV</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var_zero</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#hpge_get_E_peaks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.hpge_get_E_peaks" title="Permalink to this definition"></a></dt>
+<dd><p>Get uncalibrated E peaks at the energies of peaks_keV
+:param hist: Histogram of uncalibrated energies, see pgh.get_hist()</p>
+<blockquote>
+<div><p>var cannot contain any zero entries.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>bins</strong> (<em>array</em><em>, </em><em>array</em><em>, </em><em>array</em>) -- Histogram of uncalibrated energies, see pgh.get_hist()
+var cannot contain any zero entries.</p></li>
+<li><p><strong>var</strong> (<em>array</em><em>, </em><em>array</em><em>, </em><em>array</em>) -- Histogram of uncalibrated energies, see pgh.get_hist()
+var cannot contain any zero entries.</p></li>
+<li><p><strong>cal_pars</strong> (<em>array</em>) -- Estimated energy calibration parameters used to search for peaks</p></li>
+<li><p><strong>peaks_keV</strong> (<em>array</em>) -- Energies of peaks to search for (in keV)</p></li>
+<li><p><strong>n_sigma</strong> (<em>float</em>) -- Threshold for detecting a peak in sigma (i.e. sqrt(var))</p></li>
+<li><p><strong>Etol_keV</strong> (<em>float</em>) -- absolute tolerance in energy for matching peaks</p></li>
+<li><p><strong>var_zero</strong> (<em>float</em>) -- number used to replace zeros of var to avoid divide-by-zero in
+hist/sqrt(var). Default value is 1. Usually when var = 0 its because
+hist = 0, and any value here is fine.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>got_peak_locations</strong> (<em>list</em>) -- list of uncalibrated energies of found peaks</p></li>
+<li><p><strong>got_peak_energies</strong> (<em>list</em>) -- list of calibrated energies of found peaks</p></li>
+<li><p><strong>pars</strong> (<em>list of floats</em>) -- the parameters for poly(peaks_uncal) = peaks_keV (polyfit convention)</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.match_peaks">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">match_peaks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_pks</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cal_pks</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#match_peaks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.match_peaks" title="Permalink to this definition"></a></dt>
+<dd><p>Match uncalibrated peaks with literature energy values.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.calibration.poly_match">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.calibration.</span></span><span class="sig-name descname"><span class="pre">poly_match</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">yy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deg</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">-</span> <span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rtol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-05</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">atol</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-08</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/calibration.html#poly_match"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.calibration.poly_match" title="Permalink to this definition"></a></dt>
+<dd><p>Find the polynomial function best matching pol(xx) = yy
+Finds the poly fit of xx to yy that obtains the most matches between pol(xx)
+and yy in the np.isclose() sense. If multiple fits give the same number of
+matches, the fit with the best gof is used, where gof is computed only among
+the matches.
+Assumes that the relationship between xx and yy is monotonic
+:param xx: domain data array. Must be sorted from least to largest. Must satisfy</p>
+<blockquote>
+<div><p>len(xx) &gt;= len(yy)</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>yy</strong> (<em>array-like</em>) -- range data array: the values to which pol(xx) will be compared. Must be
+sorted from least to largest. Must satisfy len(yy) &gt; max(2, deg+2)</p></li>
+<li><p><strong>deg</strong> (<em>int</em>) -- degree of the polynomial to be used. If deg = 0, will fit for a simple
+scaling: scale * xx = yy. If deg = -1, fits to a simple shift in the
+data: xx + shift = yy. Otherwise, deg is equivalent to the deg argument
+of np.polyfit()</p></li>
+<li><p><strong>rtol</strong> (<em>float</em>) -- the relative tolerance to be sent to np.isclose()</p></li>
+<li><p><strong>atol</strong> (<em>float</em>) -- the absolute tolerance to be sent to np.isclose(). Has the same units
+as yy.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>pars</strong> (<em>None or array of floats</em>) -- The parameters of the best fit of poly(xx) = yy.  Follows the convention
+used for the return value &quot;p&quot; of polyfit. Returns None when the inputs
+are bad.</p></li>
+<li><p><strong>i_matches</strong> (<em>list of int</em>) -- list of indices in xx for the matched values in the best match</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
 </section>
-<section id="pygama-analysis-data-cleaning-module">
-<h2>pygama.analysis.data_cleaning module<a class="headerlink" href="#pygama-analysis-data-cleaning-module" title="Permalink to this headline"></a></h2>
+<section id="module-pygama.analysis.data_cleaning">
+<span id="pygama-analysis-data-cleaning-module"></span><h2>pygama.analysis.data_cleaning module<a class="headerlink" href="#module-pygama.analysis.data_cleaning" title="Permalink to this headline"></a></h2>
+<p>mainly pulser tagging
+- gaussian_cut (fits data to a gaussian, returns mean +/- cut_sigma values)
+- xtalball_cut (fits data to a crystalball, returns mean +/- cut_sigma values)
+- find_pulser_properties (find pulser by looking for which peak has a constant time between events)
+- tag_pulsers</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.data_cleaning.find_pulser_properties">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.data_cleaning.</span></span><span class="sig-name descname"><span class="pre">find_pulser_properties</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">energy</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'trap_max'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/data_cleaning.html#find_pulser_properties"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.data_cleaning.find_pulser_properties" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.data_cleaning.gaussian_cut">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.data_cleaning.</span></span><span class="sig-name descname"><span class="pre">gaussian_cut</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cut_sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plotAxis</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/data_cleaning.html#gaussian_cut"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.data_cleaning.gaussian_cut" title="Permalink to this definition"></a></dt>
+<dd><p>fits data to a gaussian, returns mean +/- cut_sigma values for a cut</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.data_cleaning.tag_pulsers">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.data_cleaning.</span></span><span class="sig-name descname"><span class="pre">tag_pulsers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chan_info</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">250</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/data_cleaning.html#tag_pulsers"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.data_cleaning.tag_pulsers" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.data_cleaning.xtalball_cut">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.data_cleaning.</span></span><span class="sig-name descname"><span class="pre">xtalball_cut</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cut_sigma</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plotFigure</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/data_cleaning.html#xtalball_cut"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.data_cleaning.xtalball_cut" title="Permalink to this definition"></a></dt>
+<dd><p>fits data to a crystalball, returns mean +/- cut_sigma values for a cut</p>
+</dd></dl>
+
 </section>
 <section id="module-pygama.analysis.datagroup">
 <span id="pygama-analysis-datagroup-module"></span><h2>pygama.analysis.datagroup module<a class="headerlink" href="#module-pygama.analysis.datagroup" title="Permalink to this headline"></a></h2>
@@ -400,8 +814,458 @@ if i cared less about the format, i would just call TinyDB(index=2)</p>
 </dd></dl>
 
 </section>
-<section id="pygama-analysis-peak-fitting-module">
-<h2>pygama.analysis.peak_fitting module<a class="headerlink" href="#pygama-analysis-peak-fitting-module" title="Permalink to this headline"></a></h2>
+<section id="module-pygama.analysis.peak_fitting">
+<span id="pygama-analysis-peak-fitting-module"></span><h2>pygama.analysis.peak_fitting module<a class="headerlink" href="#module-pygama.analysis.peak_fitting" title="Permalink to this headline"></a></h2>
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.Am_double">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">Am_double</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#Am_double"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.Am_double" title="Permalink to this definition"></a></dt>
+<dd><p>A Fit function exclusevly for a 241Am 99keV and 103keV lines situation
+Consists of</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>three gaussian peaks (two lines + one bkg line in between)</p></li>
+<li><p>two steps (for the two lines)</p></li>
+<li><p>two tails (for the two lines)</p></li>
+</ul>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.cal_slope">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">cal_slope</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m2</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#cal_slope"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.cal_slope" title="Permalink to this definition"></a></dt>
+<dd><p>Fit the calibration values</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.double_gauss">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">double_gauss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#double_gauss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.double_gauss" title="Permalink to this definition"></a></dt>
+<dd><p>A Fit function exclusevly for a 133Ba 81keV peak situation
+Consists of</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>two gaussian peaks (two lines)</p></li>
+<li><p>one step</p></li>
+</ul>
+</div></blockquote>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.fit_binned">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">fit_binned</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f_likelihood</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bin_centers</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_guess</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#fit_binned"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.fit_binned" title="Permalink to this definition"></a></dt>
+<dd><p>regular old binned fit (nonlinear least squares). data should already be
+histogrammed (see e.g. pygama.analysis.histograms.get_hist)
+# jason says this is deprecated. Use ph.fit_hist() instead.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.fit_hist">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">fit_hist</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">guess</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poissonLL</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">integral</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#fit_hist"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.fit_hist" title="Permalink to this definition"></a></dt>
+<dd><p>do a binned fit to a histogram (nonlinear least squares).
+can either do a poisson log-likelihood fit (jason's fave) or
+use curve_fit w/ an arbitrary function.
+- hist, bins, var : as in return value of pygama.histograms.get_hist()
+- guess : initial parameter guesses. Should be optional -- we can auto-guess</p>
+<blockquote>
+<div><p>for many common functions. But not yet implemented.</p>
+</div></blockquote>
+<ul class="simple">
+<li><dl class="simple">
+<dt>poissonLL<span class="classifier">use Poisson stats instead of the Gaussian approximation in</span></dt><dd><p>each bin. Requires integer stats. You must use parameter
+bounds to make sure that func does not go negative over the
+x-range of the histogram.</p>
+</dd>
+</dl>
+</li>
+<li><p>method, bounds : options to pass to scipy.optimize.minimize</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><strong>coeff, cov_matrix</strong></p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>tuple(array, matrix)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.fit_unbinned">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">fit_unbinned</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">f_likelihood</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_guess</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">min_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounds</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#fit_unbinned"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.fit_unbinned" title="Permalink to this definition"></a></dt>
+<dd><p>unbinned max likelihood fit to data with given likelihood func</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">const</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss" title="Permalink to this definition"></a></dt>
+<dd><p>define a gaussian distribution, w/ args: mu, sigma, area, const.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_basic">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_basic</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">height</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">C</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_basic"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_basic" title="Permalink to this definition"></a></dt>
+<dd><p>define a gaussian distribution, w/ args: mu, sigma, height
+(behaves differently than gauss() in fits)</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_bkg">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_bkg</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bkg</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_bkg"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_bkg" title="Permalink to this definition"></a></dt>
+<dd><p>gaussian + const background function</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_cdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_cdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tail</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bkg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_cdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_cdf" title="Permalink to this definition"></a></dt>
+<dd><p>I guess this should be similar to radford_peak (peak + tail + step)
+This is how I used it in root peak fitting scripts</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_int">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_int</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_int"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_int" title="Permalink to this definition"></a></dt>
+<dd><p>integral of a gaussian from 0 to x, w/ args: mu, sigma, area, const.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_lin">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_lin</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_lin"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_lin" title="Permalink to this definition"></a></dt>
+<dd><p>gaussian + linear background function</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_mode_max">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_mode_max</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode_guess</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poissonLL</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inflate_errors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gof_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'var'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_mode_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_mode_max" title="Permalink to this definition"></a></dt>
+<dd><p>Alias for gauss_mode_width_max that just returns the max and mode
+:param See gauss_mode_width_max:</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><p><strong>(pars, cov)</strong> --</p>
+<dl class="simple">
+<dt>pars<span class="classifier">2-tuple with the parameters (mode, maximum) of the gaussian fit</span></dt><dd><p>mode : the estimated x-position of the maximum
+maximum : the estimated maximum value of the peak</p>
+</dd>
+<dt>cov<span class="classifier">2x2 matrix of floats</span></dt><dd><p>The covariance matrix for the 2 parameters in pars</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>tuple (array, matrix)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pygama.analysis.histograms</span> <span class="k">as</span> <span class="nn">pgh</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy.random</span> <span class="kn">import</span> <span class="n">normal</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pygama.analysis.peak_fitting</span> <span class="k">as</span> <span class="nn">pgf</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">pgh</span><span class="o">.</span><span class="n">get_hist</span><span class="p">(</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">10000</span><span class="p">),</span> <span class="n">bins</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pgf</span><span class="o">.</span><span class="n">gauss_mode_max</span><span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_mode_width_max">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_mode_width_max</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode_guess</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poissonLL</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inflate_errors</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">gof_method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'var'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_mode_width_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_mode_width_max" title="Permalink to this definition"></a></dt>
+<dd><p>Get the max, mode, and width of a peak based on gauss fit near the max
+Returns the parameters of a gaussian fit over n_bins in the vicinity of the
+maximum of the hist (or the max near mode_guess, if provided). This is
+equivalent to a Taylor expansion around the peak maximum because near its
+maximum a Gaussian can be approximated by a 2nd-order polynomial in x:
+A exp[ -(x-mu)^2 / 2 sigma^2 ] ~= A [ 1 - (x-mu)^2 / 2 sigma^2 ]</p>
+<blockquote>
+<div><p>= A - (1/2!) (A/sigma^2) (x-mu)^2</p>
+</div></blockquote>
+<p>The advantage of using a gaussian over a polynomial directly is that the
+gaussian parameters are the ones we care about most for a peak, whereas for
+a poly we would have to extract them after the fit, accounting for
+covariances. The guassian also better approximates most peaks farther down
+the peak. However, the gauss fit is nonlinear and thus less stable.
+:param hist: The values of the histogram to be fit
+:type hist: array-like
+:param bins: The bin edges of the histogram to be fit
+:type bins: array-like
+:param var: The variances of the histogram values. If not provided, square-root</p>
+<blockquote>
+<div><p>variances are assumed.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mode_guess</strong> (<em>float</em><em> (</em><em>optional</em><em>)</em>) -- An x-value (not a bin index!) near which a peak is expected. The
+algorithm fits around the maximum within +/- n_bins of the guess. If not
+provided, the center of the max bin of the histogram is used.</p></li>
+<li><p><strong>n_bins</strong> (<em>int</em><em> (</em><em>optional</em><em>)</em>) -- The number of bins (including the max bin) to be used in the fit. Also
+used for searching for a max near mode_guess</p></li>
+<li><p><strong>poissonLL</strong> (<em>bool</em><em> (</em><em>optional</em><em>)</em>) -- Flag passed to fit_hist()</p></li>
+<li><p><strong>inflate_errors</strong> (<em>bool</em><em> (</em><em>optional</em><em>)</em>) -- If true, the parameter uncertainties are inflated by sqrt(chi2red)
+if it is greater than 1</p></li>
+<li><p><strong>gof_method</strong> (<em>str</em><em> (</em><em>optional</em><em>)</em>) -- method flag for goodness_of_fit</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p><strong>(pars, cov)</strong> --</p>
+<dl>
+<dt>pars<span class="classifier">3-tuple containing the parameters (mode, sigma, maximum) of the</span></dt><dd><blockquote>
+<div><p>gaussian fit</p>
+</div></blockquote>
+<p>mode : the estimated x-position of the maximum
+sigma : the estimated width of the peak. Equivalent to a guassian</p>
+<blockquote>
+<div><p>width (sigma), but based only on the curvature within n_bins of
+the peak.  Note that the Taylor-approxiamted curvature of the
+underlying function in the vicinity of the max is given by max /
+sigma^2</p>
+</div></blockquote>
+<p>maximum : the estimated maximum value of the peak</p>
+</dd>
+<dt>cov<span class="classifier">3x3 matrix of floats</span></dt><dd><p>The covariance matrix for the 3 parameters in pars</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple (array, matrix)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_norm_pdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_norm_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_norm_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_norm_pdf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_step">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bkg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_step" title="Permalink to this definition"></a></dt>
+<dd><p>gaussian + step function for Compton spectrum</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_step_pdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_step_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambda_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambda_b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hstep</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_step_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_step_pdf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_tail">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_tail</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_tail"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_tail" title="Permalink to this definition"></a></dt>
+<dd><p>A gaussian tail function template
+Can be used as a component of other fit functions</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_tail_approx">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_tail_approx</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_tail_approx"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_tail_approx" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_tail_exact">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_tail_exact</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_tail_exact"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_tail_exact" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.gauss_with_tail_pdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">gauss_with_tail_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#gauss_with_tail_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.gauss_with_tail_pdf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.get_bin_estimates">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">get_bin_estimates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">integral</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#get_bin_estimates"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.get_bin_estimates" title="Permalink to this definition"></a></dt>
+<dd><p>Bin expected means are estimated by f(bin_center)*bin_width. Supply an
+integrating function to compute the integral over the bin instead.
+TODO: make default integrating function a numerical method that is off by
+default.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.get_fwhm_func">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">get_fwhm_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#get_fwhm_func"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.get_fwhm_func" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.get_mu_func">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">get_mu_func</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#get_mu_func"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.get_mu_func" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.goodness_of_fit">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">goodness_of_fit</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'var'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#goodness_of_fit"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.goodness_of_fit" title="Permalink to this definition"></a></dt>
+<dd><p>Compute chisq and dof of fit
+:param hist: histogram data. var can be None if hist is integer counts
+:type hist: array, array, array or None
+:param bins: histogram data. var can be None if hist is integer counts
+:type bins: array, array, array or None
+:param var: histogram data. var can be None if hist is integer counts
+:type var: array, array, array or None
+:param func: the function that was fit to the hist
+:type func: function
+:param pars: the best-fit pars of func. Assumes all pars are free parameters
+:type pars: array
+:param method: Sets the choice of &quot;denominator&quot; in the chi2 sum</p>
+<blockquote>
+<div><p>'var': user passes in the variances in var (must not have zeros)
+'Pearson': use func (hist must contain integer counts)
+'Neyman': use hist (hist must contain integer counts and no zeros)</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p><ul class="simple">
+<li><p><strong>chisq</strong> (<em>float</em>) -- the summed up value of chisquared</p></li>
+<li><p><strong>dof</strong> (<em>int</em>) -- the number of degrees of freedom</p></li>
+</ul>
+</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.nb_erf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">nb_erf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#nb_erf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.nb_erf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.neg_log_like">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">neg_log_like</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">params</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">f_likelihood</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#neg_log_like"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.neg_log_like" title="Permalink to this definition"></a></dt>
+<dd><p>given a likelihood function and data, return the negative log likelihood.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.neg_poisson_log_like">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">neg_poisson_log_like</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">integral</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#neg_poisson_log_like"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.neg_poisson_log_like" title="Permalink to this definition"></a></dt>
+<dd><dl class="simple">
+<dt>Wrapper to give me poisson neg log likelihoods of a histogram</dt><dd><p>ln[ f(x)^n / n! exp(-f(x) ] = const + n ln(f(x)) - f(x)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.normalise_pdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">normalise_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pdf_func</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">params</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#normalise_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.normalise_pdf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.poisson_gof">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">poisson_gof</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pars</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">func</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">integral</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#poisson_gof"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.poisson_gof" title="Permalink to this definition"></a></dt>
+<dd><p>The Poisson likelihood does not give a good GOF until the counts are very
+high and all the poisson stats are roughly gaussian and you don't need it
+anyway. But the G.O.F. is calculable for the Poisson likelihood. So we do
+it here.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.poly">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">poly</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#poly"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.poly" title="Permalink to this definition"></a></dt>
+<dd><p>A polynomial function with pars following the polyfit convention</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_fwhm">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_fwhm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">htail</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_fwhm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_fwhm" title="Permalink to this definition"></a></dt>
+<dd><p>Return the FWHM of the radford_peak function, ignoring background and
+step components. TODO: also get the uncertainty</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_parameter_gradient">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_parameter_gradient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">E</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_parameter_gradient"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_parameter_gradient" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_pdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambda_s</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lambda_b</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hstep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_pdf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_pdf_fwhm">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_pdf_fwhm</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cov</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_pdf_fwhm"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_pdf_fwhm" title="Permalink to this definition"></a></dt>
+<dd><p>Return the FWHM of the radford_peak function, ignoring background and
+step components. TODO: also get the uncertainty</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_peak">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_peak</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hstep</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">htail</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bg0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_peak"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_peak" title="Permalink to this definition"></a></dt>
+<dd><p>David Radford's HPGe peak shape function</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_peak_wrapped">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_peak_wrapped</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bkg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">S</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">T</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">components</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_peak_wrapped"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_peak_wrapped" title="Permalink to this definition"></a></dt>
+<dd><p>A wrapped version of David Radford's HPGe peak shape function, such that
+the argument order and definition follows gauss_step</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.radford_peakshape_derivative">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">radford_peakshape_derivative</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">E</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pars</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#radford_peakshape_derivative"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.radford_peakshape_derivative" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.step">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bkg</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">a</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.step" title="Permalink to this definition"></a></dt>
+<dd><p>A step function template
+Can be used as a component of other fit functions</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.step_pdf">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">step_pdf</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hstep</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#step_pdf"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.step_pdf" title="Permalink to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.taylor_mode_max">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">taylor_mode_max</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">hist</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">var</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode_guess</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_bins</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">poissonLL</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#taylor_mode_max"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.taylor_mode_max" title="Permalink to this definition"></a></dt>
+<dd><p>Get the max and mode of a peak based on Taylor exp near the max
+Returns the amplitude and position of a peak based on a poly fit over n_bins
+in the vicinity of the maximum of the hist (or the max near mode_guess, if provided)
+:param hist: The values of the histogram to be fit. Often: send in a slice around a peak
+:type hist: array-like
+:param bins: The bin edges of the histogram to be fit
+:type bins: array-like
+:param var: The variances of the histogram values. If not provided, square-root</p>
+<blockquote>
+<div><p>variances are assumed.</p>
+</div></blockquote>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mode_guess</strong> (<em>float</em><em> (</em><em>optional</em><em>)</em>) -- An x-value (not a bin index!) near which a peak is expected. The
+algorithm fits around the maximum within +/- n_bins of the guess. If not
+provided, the center of the max bin of the histogram is used.</p></li>
+<li><p><strong>n_bins</strong> (<em>int</em>) -- The number of bins (including the max bin) to be used in the fit. Also
+used for searching for a max near mode_guess</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p><strong>(pars, cov)</strong> --</p>
+<dl class="simple">
+<dt>pars<span class="classifier">2-tuple with the parameters (mode, max) of the fit</span></dt><dd><p>mode : the estimated x-position of the maximum
+maximum : the estimated maximum value of the peak</p>
+</dd>
+<dt>cov<span class="classifier">2x2 matrix of floats</span></dt><dd><p>The covariance matrix for the 2 parameters in pars</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple (array, matrix)</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pygama.analysis.histograms</span> <span class="k">as</span> <span class="nn">pgh</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">numpy.random</span> <span class="kn">import</span> <span class="n">normal</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">pygama.analysis.peak_fitting</span> <span class="k">as</span> <span class="nn">pgf</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">pgh</span><span class="o">.</span><span class="n">get_hist</span><span class="p">(</span><span class="n">normal</span><span class="p">(</span><span class="n">size</span><span class="o">=</span><span class="mi">10000</span><span class="p">),</span> <span class="n">bins</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pgf</span><span class="o">.</span><span class="n">taylor_mode_max</span><span class="p">(</span><span class="n">hist</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">var</span><span class="p">,</span> <span class="n">n_bins</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="pygama.analysis.peak_fitting.xtalball">
+<span class="sig-prename descclassname"><span class="pre">pygama.analysis.peak_fitting.</span></span><span class="sig-name descname"><span class="pre">xtalball</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mu</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sigma</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">beta</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">m</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pygama/analysis/peak_fitting.html#xtalball"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#pygama.analysis.peak_fitting.xtalball" title="Permalink to this definition"></a></dt>
+<dd><p>power-law tail plus gaussian <a class="reference external" href="https://en.wikipedia.org/wiki/Crystal_Ball_function">https://en.wikipedia.org/wiki/Crystal_Ball_function</a></p>
+</dd></dl>
+
 </section>
 <section id="pygama-analysis-pulse-shape-analysis-module">
 <h2>pygama.analysis.pulse_shape_analysis module<a class="headerlink" href="#pygama-analysis-pulse-shape-analysis-module" title="Permalink to this headline"></a></h2>
