@@ -3,15 +3,28 @@ import os,json
 from pygama.analysis import histograms as pgh
 import pygama.lh5 as lh5
 import pygama.dsp.dsp_optimize as opt
-from pygama.analysis.peak_fitting import radford_peak, gauss_step
 import pygama.analysis.peak_fitting as pgf
 import pygama.analysis.calibration as pgc
 import pygama.genpar_tmp.cuts as cts
 import pickle as pkl
-from scipy.optimize import curve_fit
 import glob
+from iminuit import Minuit, cost, util
+from scipy.integrate import simps
+import numba as nb
+from math import erfc
+import sys
+from scipy.optimize import minimize, curve_fit, minimize_scalar, brentq
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib as mpl
+import pathlib
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+from scipy.stats import chisquare
+
 
 sto = lh5.Store()
+kwd = {"parallel": False, "fastmath": True}
+limit = np.log(sys.float_info.max)/10
 
 def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, n_events=8000, **fom_kwargs):
     """
@@ -68,6 +81,9 @@ def run_optimisation_multiprocessed(file,opt_config,dsp_config, cuts, fom, db_di
                 if len(in_dict[key]) == length:
                     for i in range(length):
                         out_list[i][key] = in_dict[key][i]
+                else:
+                    for i in range(length):
+                        out_list[i][key] = in_dict[key] 
             else:
                 for i in range(length):
                     out_list[i][key] = in_dict[key]
@@ -118,123 +134,192 @@ def simple_guess(hist, bins, var, func_i):
     """
     Simple guess for peak fitting
     """
-    if func_i == pgf.radford_peak:
-        mu, sigma, amp = pgh.get_gaussian_guess(hist,bins)
-        i_0 = np.argmax(hist)
+    if func_i == pgf.radford_pdf:
+        bin_cs = (bins[1:]+bins[:-1])/2
+        #hist = (hist[1:-1]+hist[2:]+hist[:-2])/3
+        _, sigma, amp = pgh.get_gaussian_guess(hist,bins)
+        i_0 = np.nanargmax(hist)
+        mu = bin_cs[i_0]
         height = hist[i_0]
-        bg0 = np.sum(hist[-5:])/5
-        step = np.sum(hist[:5])/5 - bg0
+        bg0 = np.mean(hist[-10:])
+        step = np.mean(hist[:10]) - bg0
         htail = 1./5
-        tau = 6.*sigma
+        tau = sigma
         height -= (bg0 + step/2)
         amp = height / (htail*0.87/35 + (1-htail)/(sigma*np.sqrt(2*np.pi)))
         hstep = step/(2*amp)
-
-        parguess = [mu, sigma, hstep, htail, tau, bg0, amp]
-
+        dx = np.diff(bins)[0]
+        nsig_guess = np.sum(hist[int(i_0-4*dx*sigma):int(i_0+4*dx*sigma)])
+        nbkg_guess = np.sum(hist)-nsig_guess
+        parguess = [nsig_guess,nbkg_guess ,mu, sigma, hstep,  tau] #htail,
         return parguess
-    elif func_i == pgf.gauss_step:
+    
+    elif func_i == pgf.gauss_step_pdf:
         mu, sigma, amp = pgh.get_gaussian_guess(hist,bins)
         i_0 = np.argmax(hist)
         height = hist[i_0]
-        bg = np.sum(hist[-5:])/5
-        step = np.sum(hist[:5])/5 - bg
+        bg = np.mean(hist[-10:])
+        step = np.mean(hist[:10]) - bg
         tau = 6.*sigma
         height -= (bg + step/2)
         amp = height * sigma * np.sqrt(2 * np.pi)
+        dx = np.diff(bins)[0]
+        nsig_guess = np.sum(hist[int(i_0-4*dx*sigma):int(i_0+4*dx*sigma)])
+        nbkg_guess = np.sum(hist)-nsig_guess
+        return [nsig_guess,nbkg_guess, mu, sigma, step]
 
-        return [amp, mu, sigma, bg, step]
-        
-
-def fit_peak_func(energies, peak, kev_width, func_i= pgf.gauss_step):
-    """
-    Fits an energy peak using the function specified
-    """
+def unbinned_energy_fit(energy, func, verbose=False, display=0):
     bin_width = 1
-    lower_bound = (np.nanmin(energies)//bin_width) * bin_width
-    upper_bound = ((np.nanmax(energies)//bin_width)+1) * bin_width
-    hist, bins, var = pgh.get_hist(energies, dx = bin_width, range = (lower_bound,upper_bound))  
-    mu = bins[np.nanargmax(hist)]
-    adc_to_kev = mu/peak
-    # Making the window slightly smaller removes effects where as mu moves edge can be outside bin width
-    lower_bound = mu - (kev_width[0] -2)* adc_to_kev 
-    upper_bound = mu + (kev_width[1] -2)* adc_to_kev
-    hist, bins, var = pgh.get_hist(energies, dx = bin_width, range = (lower_bound,upper_bound))
-    #par_guesses = pgc.get_hpge_E_peak_par_guess(hist, bins, var, func_i)
-    #if par_guesses == []: 
-    par_guesses = simple_guess(hist, bins, var, func_i)
-    try: 
-        bounds = pgc.get_hpge_E_peak_bounds(hist, bins, var, func_i, par_guesses)
-        pars_i, cov_i = pgf.fit_hist(func_i, hist, bins, var=var, guess=par_guesses, bounds=bounds)
+    lower_bound = (np.nanmin(energy)//bin_width) * bin_width
+    upper_bound = ((np.nanmax(energy)//bin_width)+1) * bin_width
+    hist, bins,var = pgh.get_hist(energy,dx=bin_width, range= (lower_bound, upper_bound))
+    bin_cs = (bins[:-1]+bins[1:])/2
+    x0 = simple_guess(hist, bins, var, func)
+    if verbose:print(x0)
+    c = cost.ExtendedUnbinnedNLL(energy, func)
+    m = Minuit(c, *x0)
+    m.migrad()
+    m.hesse()
+    
+    m_fit = func(bin_cs, *m.values)[1]
+    cs = chisquare(hist, m_fit)[0]/len(m.values)
+    m2 = Minuit(c, *x0)
+    m2.simplex().migrad()
+    m2.hesse()
+    m2_fit = func(bin_cs, *m2.values)[1]
+    cs2 = chisquare(hist, m2_fit)[0]/len(m2.values)
+    
+    if display >1:
+        print(m.errors)
+        print(m2.errors)
+        plt.figure()
+        plt.plot(bin_cs, hist)
+        plt.plot(bin_cs, m2_fit)
+        plt.plot(bin_cs, m_fit)
+        plt.show()
+        
+    frac_errors1 = np.sum(np.abs(np.array(m.errors)/np.array(m.values)))
+    frac_errors2 = np.sum(np.abs(np.array(m2.errors)/np.array(m2.values)))
+    
+    if np.isnan(m.errors).all() and np.isnan(m2.errors).all():
+        print("extra simplex needed")
+        m = Minuit(c, *x0)
+        m.simplex().simplex().migrad()
+        m.hesse()
+        m_fit = func(bin_cs, *m.values)[1]
+        cs = chisquare(hist, m_fit)[0]/len(m.values)
+        
+        return m.values, m.errors, m.covariance, cs
 
-    except: pars_i, cov_i = None, None
-    return hist, bins, pars_i, cov_i
+    elif np.isnan(m2.errors).all() or cs*1.1 < cs2:
+        return m.values, m.errors, m.covariance, cs
+    
+    elif np.isnan(m.errors).all() or cs2*1.1 < cs:
+        return m2.values, m2.errors, m2.covariance, cs2
 
-def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=False):
+    elif frac_errors1 < frac_errors2:
+        return m.values, m.errors, m.covariance, cs
+    
+    elif frac_errors1 > frac_errors2:
+        return m2.values, m2.errors, m2.covariance, cs2
+    
+
+    else:
+        raise RuntimeError
+
+def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, peak, kev_width, kev=False, display=0):
     """
     Applies the drift time correction and fits the peak returns the fwhm, max, err. Can return result in ADC or keV
     """
+
     correction = np.multiply(np.multiply(alpha,dt, dtype='float64'),Energies, dtype='float64')
     ct_energy = np.add(correction, Energies)
     
-    if func == radford_peak:
-        try:   
-            hist, bins, params, covs = fit_peak_func(ct_energy, func_i= func, peak=peak, kev_width=kev_width)
-            fwhm, fwhm_err = pgf.get_fwhm_func(func, params,covs)
-            if kev==True:
-                fwhm *= (peak/params[0])
-                fwhm_err *= (peak/params[0])
+    bin_width = 1
+    lower_bound = (np.nanmin(ct_energy)//bin_width) * bin_width
+    upper_bound = ((np.nanmax(ct_energy)//bin_width)+1) * bin_width
+    hist, bins, var = pgh.get_hist(ct_energy, dx = bin_width, range = (lower_bound,upper_bound))  
+    mu = bins[np.nanargmax(hist)]
+    adc_to_kev = mu/peak
+    # Making the window slightly smaller removes effects where as mu moves edge can be outside bin width
+    lower_bound = mu - (kev_width[0]* adc_to_kev) 
+    upper_bound = mu + (kev_width[1]* adc_to_kev)
+    win_idxs = (ct_energy>lower_bound) &(ct_energy<upper_bound)
+    try:   
+    
+        if display >0:
+            energy_pars, energy_err, cov, chisqr = unbinned_energy_fit(ct_energy[win_idxs], func, verbose=True, display=display)
+            print(energy_pars)
+            print(energy_err) 
+            print(cov)
+            plt.figure()
+            xs = np.arange(lower_bound, upper_bound, bin_width)
+            hist, bins, var = pgh.get_hist(ct_energy, dx = bin_width, range = (lower_bound,upper_bound))
+            plt.plot((bins[1:]+bins[:-1])/2, hist)
+            plt.plot(xs , func(xs, *energy_pars)[1])
+            plt.show()
+        else:
+            energy_pars, energy_err, cov, chisqr = unbinned_energy_fit(ct_energy[win_idxs], func)
+        if func == pgf.radford_pdf:
+            xs = np.arange(lower_bound,upper_bound+1, 1)
+            #try: 
+            fwhm= pgf.radford_pdf_fwhm(energy_pars[3], np.abs(energy_pars[5]))
+
+        elif func == pgf.gauss_step_pdf:
+            fwhm = energy_pars[3]*2*np.sqrt(2*np.log(2))
+            fwhm_err = np.sqrt(cov[3][3])*2*np.sqrt(2*np.log(2))
+
+        xs = np.arange(lower_bound, upper_bound, 0.1)
+        y = func(xs, *energy_pars)[1]
+        max_val = np.amax(y)
         
-            try:
-                hist2, bins2, params2, covs2 = fit_peak_func(ct_energy, func_i= pgf.gauss_step, peak=peak, kev_width=kev_width)
-                fwhm2, fwhm2_err = pgf.get_fwhm_func(pgf.gauss_step, params2, covs2)
-                if kev==True:
-                    fwhm2 *= (peak/params2[1])
-                    fwhm2_err *= (peak/params2[1])
-                if np.isnan(fwhm) and np.isnan(fwhm2):
-                    return np.nan, np.nan, np.nan
-                elif np.isnan(fwhm) and not np.isnan(fwhm2):
-                    fwhm = fwhm2
-                    fwhm_err = fwhm2_err
-                    fit = gauss_step(bins2, *params2)
-                elif np.isnan(fwhm2) and not np.isnan(fwhm):
-                    fit = radford_peak(bins, *params)
-                else: 
-                    bin_centres = (bins[:-1]+bins[1:])/2
-                    fit_rp = radford_peak(bin_centres, *params)
-                    fit_gs = gauss_step(bin_centres, *params2)
-                    cs_rp = chisquare(hist, f_exp=fit_rp, ddof=7)[0] 
-                    cs_gs = chisquare(hist, f_exp=fit_gs, ddof=5)[0]
-                    if cs_rp < cs_gs: 
-                        fit = radford_peak(bins, *params)
-                    else: 
-                        fwhm = fwhm2
-                        fwhm_err = fwhm2_err
-                        fit = gauss_step(bins2, *params2)
-            except: 
-                fit = radford_peak(bins, *params)
-            
-        except: 
-            return np.nan, np.nan, np.nan
-    elif func == gauss_step:
-        try:
-            hist, bins, params, covs = fit_peak_func(ct_energy, func_i= func, peak=peak, kev_width=kev_width)
-            fwhm, fwhm_err = pgf.get_fwhm_func(func, params,covs)
-            if kev==True:
-                fwhm *= (peak/params[1])
-                fwhm_err *= (peak/params[1])
-            fit = gauss_step(bins, *params)
-            
-        except:
-            return np.nan, np.nan, np.nan
-    max_val = np.nanmax(fit)
-    if not np.isnan(fwhm/max_val) and not max_val == 0:
-        return fwhm, max_val, fwhm_err
-    else:
-        return np.nan, np.nan, np.nan
+        fwhm_o_max = fwhm/max_val
+        
+        rng = np.random.default_rng(1)
+        # generate set of bootstrapped parameters
+        par_b = rng.multivariate_normal(energy_pars, cov, size=100)
+        y_max = np.array([func(xs, *p)[1] for p in par_b])
+        maxs = np.nanmax(y_max, axis=1)
+        
+        yerr_boot = np.nanstd(y_max, axis=0)
 
+        if func == pgf.radford_pdf:
+            y_b = np.zeros(len(par_b))
+            for i,p in enumerate(par_b):
+                y_b[i] = pgf.radford_pdf_fwhm(p[3],np.abs(p[5]))
+            fwhm_err = np.nanstd(y_b, axis=0)
+            fwhm_o_max_err = np.nanstd(y_b/maxs, axis=0)
+        else:
+            
+            max_err = np.nanstd(maxs)
 
-def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter):
+            fwhm_o_max_err = fwhm_o_max*np.sqrt((np.array(fwhm_err)/np.array(fwhm))**2+(np.array(max_err)/np.array(max_val))**2)
+
+        if display >1:
+            plt.figure()
+            plt.plot((bins[1:]+bins[:-1])/2, hist)
+            for i in range(100):
+                plt.plot(xs, y_max[i,:])
+            plt.show()
+        
+        if display >0:
+            plt.figure()
+            hist, bins, var = pgh.get_hist(ct_energy, dx = bin_width, range = (lower_bound,upper_bound))
+            plt.plot((bins[1:]+bins[:-1])/2, hist)
+            plt.plot(xs , func(xs, *energy_pars)[1])
+            plt.fill_between(xs, y - yerr_boot, y + yerr_boot, facecolor="C1", alpha=0.5)
+            plt.show()
+
+    except:
+        return np.nan,np.nan,np.nan,np.nan,np.nan,np.nan,np.nan
+
+    if kev==True:
+        fwhm *= (peak/energy_pars[2])
+        fwhm_err *= (peak/energy_pars[2])
+
+    return fwhm, fwhm_o_max, fwhm_err,fwhm_o_max_err, chisqr, energy_pars[0], energy_err[0]
+
+def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter, display=0):
     """
     Fom for sweeping over ctc values to find the best value, returns the best found fwhm 
     """
@@ -244,66 +329,74 @@ def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter):
     Energies = Energies.astype('float64')
     peak = kwarg_dict['peak']
     kev_width = kwarg_dict['kev_width']
-    max_alpha = 3*10**-6
-    astep= 0.75*10**-7
+    min_alpha=0
+    max_alpha = 3.5e-06
+    astep= 1.25e-07
     if ctc_parameter == 'QDrift':
         dt = tb_in['dt_eff'].nda 
     elif ctc_parameter == 'dt':
-        #ends = tb_in['tp_99'].nda
-        #nan_idxs = np.where(np.isnan(ends))[0]
-        #if len(nan_idxs) < 0.01*len(Energies):
-        #    maxs = tb_in['wf_max'].nda
-        #    ends[nan_idxs] = maxs[nan_idxs]
         dt = np.subtract(tb_in['tp_99'].nda , tb_in['tp_0_est'].nda, dtype='float64')
     elif ctc_parameter == 'rt':
         dt = np.subtract(tb_in['tp_99'].nda,tb_in['tp_01'].nda, dtype='float64')
     if np.isnan(Energies).any(): return {'fwhm':np.nan, 'fwhm_err':np.nan, 'alpha':np.nan}
     if np.isnan(dt).any(): 
-        print(np.where(np.isnan(dt))[0])
         return {'fwhm':np.nan,'fwhm_err':np.nan, 'alpha':np.nan}
-    min_alpha=0
-    alphas = np.arange(min_alpha,max_alpha+astep, astep,  dtype='float64')
+    alphas = np.linspace(0,3.5*10**-6,num=29) # np.arange(min_alpha,max_alpha+astep, astep,  dtype='float64')
     fwhms = np.array([])
     final_alphas = np.array([])
+    fwhm_errs = np.array([])
     for alpha in alphas:
-        fwhm, max_val,_ = get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func=func,
-                                                    peak=peak, kev_width=kev_width)
-        if not np.isnan(fwhm/max_val):
-            fwhms = np.append(fwhms,fwhm/max_val)
-            final_alphas = np.append(final_alphas, alpha)  
+        _, fwhm_o_max,_,fwhm_o_max_err,_,_,_ = get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func,peak,kev_width) #,_,fwhm_o_max_err
+        if not np.isnan(fwhm_o_max):
+            fwhms = np.append(fwhms,fwhm_o_max)
+            final_alphas = np.append(final_alphas, alpha) 
+            fwhm_errs = np.append(fwhm_errs, fwhm_o_max_err)
     
     # Make sure fit isn't based on only a few points
     if len(fwhms)< 10:
+        print("less than 10 fits successful")
         return {'fwhm':np.nan, 'fwhm_err':np.nan, 'alpha':np.nan} 
 
-    # This block is to remove anomalously high values from floating point errors
-    if fwhms[-1]>fwhms[0]:
-        ids = np.where(fwhms>fwhms[-1])
-    else:
-        ids = np.where(fwhms>fwhms[0])
-    fwhms = np.delete(fwhms,ids)
-    final_alphas = np.delete(final_alphas,ids)
-    
+    ids = fwhm_errs < 5*np.mean(sorted(fwhm_errs)[:5])
     # Fit alpha curve to get best alpha
-    alphas = np.arange(0,max_alpha+astep,astep/10)
-    fit = np.polynomial.polynomial.polyfit(final_alphas, fwhms, 4)
-    fit_vals = np.polynomial.polynomial.polyval(alphas, fit)
+    
+    try:
+        alphas = np.arange(final_alphas[ids][0],final_alphas[ids][-1],astep/20)#num=
+        fit = np.polynomial.polynomial.polyfit(final_alphas[ids], fwhms[ids], w=1/fwhm_errs[ids], deg= 4)
+        fit_vals = np.polynomial.polynomial.polyval(alphas,fit)
+        alpha = alphas[np.nanargmin(fit_vals)]
+        if display >0:
+            plt.figure()
+            plt.errorbar(final_alphas, fwhms, yerr = fwhm_errs, linestyle = ' ')
+            plt.plot(alphas, fit_vals)
+            plt.show()
+            
+    except:
+        print("alpha fit failed")
+        return {'fwhm':np.nan, 'fwhm_err':np.nan, 'alpha':np.nan}
     if np.isnan(fit_vals).all():
+        print("alpha fit all nan")
         return {'fwhm':np.nan, 'fwhm_err':np.nan, 'alpha':np.nan}
     else:
         # Return fwhm of optimal alpha in kev with error
-        final_fwhm, final_max, final_err = get_peak_fwhm_with_dt_corr(Energies, alphas[np.nanargmin(fit_vals)],dt, 
-                                                  func, peak=peak, kev_width=kev_width, kev=True)
+        final_fwhm, _, final_err,_, csqr, n_sig, n_sig_err = get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func,
+                                                                          peak,kev_width, kev=True, display=display)
+        if np.isnan(final_fwhm) or np.isnan(final_err):
+            print(f"final fit failed, alpha was {alpha}")
         return {'fwhm': final_fwhm,
                 'fwhm_err': final_err,
-                'alpha':alphas[np.nanargmin(fit_vals)],
+                'alpha':alpha,
+                'chisquare':csqr,
+                'n_sig':n_sig,
+                'n_sig_err':n_sig_err
                 } 
+
 
 def fom_all_fit(tb_in,verbosity, kwarg_dict):
     """
     fom to run over different ctc parameters
     """
-    ctc_parameters = ['dt', 'rt', 'QDrift']
+    ctc_parameters = ['dt', 'QDrift']
     output_dict = {}
     for param in ctc_parameters:
         out = fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, param)
@@ -320,56 +413,16 @@ def fom_FWHM_fit(tb_in,verbosity, kwarg_dict):
     Energies = Energies.astype('float64')
     peak = kwarg_dict['peak']
     kev_width = kwarg_dict['kev_width']
+    #alpha = kwarg_dict['alpha']
     if np.isnan(Energies).any(): return {'fwhm':np.nan, 'fwhm_err':np.nan}
 
-    final_fwhm, final_max, final_err = get_peak_fwhm_with_dt_corr(Energies, 0,0, 
+    _, final_fwhm_o_max, _,final_fwhm_o_max_err, csqr, n_sig, n_sig_err  = get_peak_fwhm_with_dt_corr(Energies, 0,0, 
                                                   func, peak=peak, kev_width=kev_width, kev=True)
-    return {'fwhm': final_fwhm,
-            'fwhm_err': final_err,
-            'max':final_max} 
-
-def get_peak_indices(dsp_file, peak_val, verbose=True):
-    """
-    Finds the indexes of events in the peak after cuts to run optimizer on, uses dsp files
-    """
-    energy = lh5.load_nda(dsp_file, ['trapEmax'], 'raw')['trapEmax']
-    if verbose:print('Data Loaded')
-
-    peaks_keV = np.array([238.632,   583.191, 727.330, 860.564, 1620.5, 2614.553])
-    guess_keV = 1/18
-    Euc_min = peaks_keV[0]/guess_keV * 0.6
-    Euc_max = peaks_keV[-1]/guess_keV * 1.1
-    dEuc = 1/guess_keV
-
-    hist, bins, var = pgh.get_hist(energy, range=(Euc_min, Euc_max), dx=dEuc)
-    detected_peaks_locs, detected_peaks_keV, roughpars = pgc.hpge_find_E_peaks(hist, bins, var, peaks_keV)
-    kev_widths = [(10,10), (25,40), (25,40),(25,40),(25,40), (50,50)]
-    funcs = [pgf.gauss_step, pgf.radford_peak, pgf.radford_peak,pgf.radford_peak,pgf.radford_peak, pgf.radford_peak]
-    peak_idx = np.where(peaks_keV == peak_val)[0][0]
-    peak_loc = detected_peaks_locs[peak_idx]
-    kev_width = kev_widths[peak_idx]
-    rough_adc_to_kev = roughpars[0]
-    func= funcs[peak_idx]
-    
-    e_lower_lim = peak_loc - (kev_width[0])/rough_adc_to_kev
-    e_upper_lim = peak_loc + (kev_width[1])/rough_adc_to_kev
-    if verbose:print(e_lower_lim, e_upper_lim)
-    e_mask = (energy>e_lower_lim)&(energy<e_upper_lim)
-    e_idxs = np.where(e_mask)[0]
-    if verbose:print(f'Got cut events in {peak_val}') 
-
-    parameters = {'bl_mean':4,'bl_std':4, 'pz_std':4}
-    par_data = lh5.load_nda(dsp_file, parameters.keys(), 'raw')
-
-    for key in parameters.keys():
-        par_data[key] = par_data[key][e_idxs]
-
-    cut_dict = cts.generate_cuts(slice_dict(par_data, 40000), parameters)
-    if verbose:print('Loaded Cuts')
-    ct_mask = cts.get_cut_indexes(par_data, cut_dict, 'raw')
-    wf_idxs = e_idxs[ct_mask][:10000]
-    if verbose:print(f'Got events in {peak_val}')
-    return wf_idxs, func, kev_width
+    return {'fwhm_o_max':final_fwhm_o_max,
+            'max_o_fwhm':final_fwhm_o_max_err,
+            'chisquare':csqr,
+            'n_sig':n_sig,
+            'n_sig_err':n_sig_err} 
 
 def event_selection(raw_file, dsp_config, db_dict, peaks_keV, peak_idx, kev_width):
     """
@@ -435,8 +488,6 @@ def slice_dict(in_dict, n):
         out_dict[par]=in_dict[par][:n]
     return out_dict
 
-
-
 def load_grids(files, parameter):
     """
     Loads in optimizer grids
@@ -494,11 +545,7 @@ def interpolate_energy(peak_energies, grids, error_grids, energy):
     """
     Interpolates fwhm vs energy for every grid point
     """
-    def fwhm_slope(x, m0, m1):
-        """
-        Fit the energy resolution curve
-        """
-        return np.sqrt(m0 + m1*x)
+
     grid_no = len(grids)
     grid_shape = grids[0].shape
     out_grid = np.empty(grid_shape)
@@ -507,16 +554,16 @@ def interpolate_energy(peak_energies, grids, error_grids, energy):
         points = np.array([grids[i][index] for i in range(len(grids))])
         err_points = np.array([error_grids[i][index] for i in range(len(grids))])
         nan_mask = np.isnan(points)
-        nan_mask = nan_mask | (points<0) | (0.05*points<err_points)
+        nan_mask = nan_mask | (points<0) | (0.1*points<err_points)
         try:
             if len(points[nan_mask])>2:
                 raise ValueError
             elif nan_mask[-1] == True or nan_mask[-2] == True:
                 raise ValueError
-            param_guess  = [0.2,0.001]#,0.000001
-            param_bounds = (0, [10., 1. ])#,0.1
+            param_guess  = [0.2,0.001,0.000001]
+            #param_bounds = (0, [10., 1. ])#,0.1
             fit_pars, fit_covs = curve_fit(fwhm_slope, peak_energies[~nan_mask],points[~nan_mask], sigma=err_points[~nan_mask], 
-                               p0=param_guess, bounds=param_bounds, absolute_sigma=True)
+                               p0=param_guess,  absolute_sigma=True) #bounds=param_bounds,
             fit_qbb = fwhm_slope(energy,*fit_pars)
             sderrs = np.sqrt(np.diag(fit_covs))
             qbb_err = fwhm_slope(energy,*(fit_pars+sderrs))-fwhm_slope(energy,*fit_pars)
@@ -526,6 +573,12 @@ def interpolate_energy(peak_energies, grids, error_grids, energy):
             out_grid[index] = np.nan
             out_grid_err[index] = np.nan
     return out_grid, out_grid_err
+
+def fwhm_slope(x, m0, m1, m2):
+    """
+    Fit the energy resolution curve
+    """
+    return np.sqrt(m0 + m1*x + m2*(x**2))
 
 def find_lowest_grid_point_save(grid, err_grid, opt_dict):
     """
@@ -591,19 +644,115 @@ def interpolate_grid(energies, grids, int_energy, deg):
             out_grid[index] = np.nan
     return out_grid
 
-def get_best_vals(peak_grids, peak_energies, param, opt_dict):
+def get_best_vals(peak_grids, peak_energies, param, opt_dict, save_path=None, det=None):
     """
     Finds best filter parameters
     """
     dt_grids, error_grids, alpha_grids = get_ctc_grid(peak_grids, param)
     qbb_grid, qbb_errs = interpolate_energy(peak_energies, dt_grids, error_grids, 2039.061)
-    qbb_alphas = interpolate_grid(peak_energies[1:], alpha_grids[1:], 2039.061, 1)
+    qbb_alphas = interpolate_grid(peak_energies[2:], alpha_grids[2:], 2039.061, 1)
     ixs, fwhm_dict, db_dict = find_lowest_grid_point_save(qbb_grid, qbb_errs, opt_dict)
     out_grid = {'fwhm':qbb_grid, 'fwhm_err':qbb_errs, 'alphas':qbb_alphas}
-    try:
-        alphas = qbb_alphas[ixs[0], ixs[1]][0]
-    except:
-        alphas = np.nan
+
+    if isinstance(save_path,str):
+        mpl.use('pdf')
+        e_param = list(opt_dict.keys())[0]
+        opt_dict = opt_dict[e_param]
+
+        detector = save_path.split('/')[-1]
+        save_path = os.path.join(save_path, f"{e_param}-{param}.pdf")
+        pathlib.Path(os.path.dirname(save_path)).mkdir(parents=True, exist_ok=True)
+
+        with PdfPages(save_path) as pdf:
+            
+            keys = list(opt_dict.keys())
+            print(keys)
+            x_dict = opt_dict[keys[1]]
+            xs=(np.arange(0,x_dict['frequency'],1),np.linspace(x_dict['start'],x_dict['end'],x_dict['frequency']))
+            y_dict = opt_dict[keys[0]]
+            ys=(np.arange(0,y_dict['frequency'],1),np.linspace(y_dict['start'],y_dict['end'],y_dict['frequency']))
+            for i,x in enumerate(xs[1]):
+                xs[1][i] = round(x,1)
+            for i,y in enumerate(ys[1]):
+                ys[1][i] = round(y,1)
+        
+            points = [dt_grids[i][ixs[0][0], ixs[1][0]] for i in range(len(dt_grids))]
+            err_points = [error_grids[i][ixs[0][0], ixs[1][0]] for i in range(len(error_grids))]
+            alpha_points = [alpha_grids[i][ixs[0][0], ixs[1][0]] for i in range(len(alpha_grids))]
+            param_guess  = [0.2,0.001,0.000001]
+            #param_bounds = (0, [10., 1. ]),0.1
+            fit_pars, fit_covs = curve_fit(fwhm_slope, peak_energies,points, sigma=err_points, 
+                                        p0=param_guess,  absolute_sigma=True) #bounds=param_bounds,
+            energy_x = np.arange(200,2600,10)
+            plt.rcParams['figure.figsize'] = (12, 18)
+            plt.rcParams['font.size'] = 12
+            plt.figure()
+            for i, dt_grid in enumerate(dt_grids):
+                plt.subplot(3,2,i+1)
+                plt.imshow(dt_grid, norm=LogNorm(vmin=np.nanmin(np.abs(dt_grid)), vmax=np.nanpercentile(dt_grid,98)), cmap='viridis')
+                    
+                plt.xticks(xs[0],xs[1])
+                plt.yticks(ys[0],ys[1])
+
+                plt.xlabel(f'{keys[1]} (us)')
+                plt.ylabel(f'{keys[0]} (us)')
+                plt.title(f'{peak_energies[i]:.1f} kev')
+                plt.xticks(rotation=45)
+                cbar = plt.colorbar()
+                cbar.set_label("FWHM (keV)")
+            plt.tight_layout()
+            plt.suptitle(f"{det}-{e_param}-{param}")
+            pdf.savefig()
+            plt.close()
+
+            plt.figure()
+
+            plt.imshow(qbb_grid, norm=LogNorm(vmin=np.nanmin(qbb_grid), vmax=np.nanpercentile(dt_grid,98)), cmap='viridis')
+            plt.xlabel(f'{keys[1]} (us)')
+            plt.ylabel(f'{keys[0]} (us)')
+            plt.title(f'Qbb')
+            plt.xticks(rotation=45)
+            cbar = plt.colorbar()
+            cbar.set_label("FWHM (keV)")
+            plt.tight_layout()
+            plt.suptitle(f"{det}-{e_param}-{param}")
+            pdf.savefig()
+            plt.close()
+            
+            fig, (ax1, ax2) = plt.subplots(2, 1, constrained_layout=True, sharex=True)
+            ax1.errorbar(peak_energies,points, yerr=err_points, fmt= ' ')
+            ax1.plot(energy_x, fwhm_slope(energy_x,*fit_pars))
+            ax1.errorbar([2039],qbb_grid[ixs[0], ixs[1]], yerr=qbb_errs[ixs[0], ixs[1]], fmt= ' ')
+            ax1.set_ylabel("FWHM energy resolution (keV)", ha='right', y=1)
+            ax2.scatter(peak_energies,(points-fwhm_slope(peak_energies,*fit_pars))/err_points, lw=1, c='b')
+            ax2.set_xlabel("Energy (keV)",    ha='right', x=1)
+            ax2.set_ylabel("Standardised Residuals", ha='right', y=1)
+            fig.suptitle(f"{det}-{e_param}-{param}")
+            pdf.savefig()
+            plt.close()
+
+            try:
+                alphas = qbb_alphas[ixs[0], ixs[1]][0]
+                if isinstance(save_path,str):
+                    alpha_fit = np.polynomial.polynomial.polyfit(peak_energies[2:], alpha_points[2:], deg=1)
+                    fig, (ax1, ax2) = plt.subplots(2, 1, constrained_layout=True, sharex=True)
+                    ax1.scatter(peak_energies[:],alpha_points[:])
+                    ax1.plot(peak_energies[2:], np.polynomial.polynomial.polyval(peak_energies[2:], alpha_fit))
+                    ax1.scatter([2039],qbb_alphas[ixs[0], ixs[1]])
+                    ax1.set_ylabel("Charge Trapping Value", ha='right', y=1)
+                    ax2.scatter(peak_energies[2:],(alpha_points[2:]-np.polynomial.polynomial.polyval(peak_energies[2:], alpha_fit))/alpha_points[2:], lw=1, c='b')
+                    ax2.set_xlabel("Energy (keV)",    ha='right', x=1)
+                    ax2.set_ylabel("Residuals (%)", ha='right', y=1)
+                    fig.suptitle(f"{det}-{param}")
+                    pdf.savefig()
+                    plt.close()
+            except:
+                alphas = np.nan
+    else:
+        try:
+            alphas = qbb_alphas[ixs[0], ixs[1]][0]
+        except:
+            alphas = np.nan
     return alphas, fwhm_dict, db_dict, out_grid
 
 def match_config(parameters, opt_dicts):
@@ -621,10 +770,11 @@ def match_config(parameters, opt_dicts):
             out_dict['trapEmax'] = opt_dict
     return out_dict
 
-def get_filter_params(files, opt_dicts):
+def get_filter_params(files, opt_dicts, save_path=None):
     """
     Finds best parameters for filter
     """
+
     full_db_dict = {}
     full_fwhm_dict = {}
     full_grids={}
@@ -643,12 +793,14 @@ def get_filter_params(files, opt_dicts):
         
         for ctc_param in ctc_params:
             if ctc_param == 'QDrift':
-                alpha, fwhm, db_dict, output_grid = get_best_vals(peak_grids,peak_energies, ctc_param, opt_dict)
+                alpha, fwhm, db_dict, output_grid = get_best_vals(peak_grids,peak_energies, ctc_param, opt_dict, 
+                                                                    save_path=save_path)
                 opt_name = list(opt_dict.keys())[0]
                 db_dict[opt_name].update({'alpha':alpha})
                 
             else:
-                alpha,fwhm,_ , output_grid = get_best_vals(peak_grids, peak_energies, ctc_param, opt_dict)
+                alpha,fwhm,_ , output_grid = get_best_vals(peak_grids, peak_energies, ctc_param, opt_dict,
+                                                            save_path=save_path)
             try:
                 full_grids[param][ctc_param] = output_grid
             except:
@@ -658,8 +810,6 @@ def get_filter_params(files, opt_dicts):
         full_fwhm_dict[param] = ctc_dict
         full_db_dict.update(db_dict)
     return full_db_dict, full_fwhm_dict, full_grids
-
-
 
 def run_splitter(files):
     """
