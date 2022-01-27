@@ -736,3 +736,117 @@ def poly(x, pars):
         result += pars[-i-1]*x
         x = x*x
     return result
+
+def gauss_step_pdf(data,  lambda_s, lambda_b, mu, sigma, hstep):
+    bkg, bkg_norm = normalise_pdf(data, step_pdf, mu, sigma, hstep)
+    if np.any(bkg<0):
+        return 0, np.zeros_like(data)
+    pdf = lambda_s*gauss_norm_pdf(data,mu,sigma) +\
+          lambda_b*bkg
+    return lambda_s+lambda_b, pdf
+
+def radford_pdf(data, lambda_s, lambda_b, mu, sigma, hstep, tau):
+    bkg, bkg_norm = normalise_pdf(data, step_pdf, mu, sigma, hstep)
+    if np.any(bkg<0):
+        return 0, np.zeros_like(data)
+    sig, sig_norm = normalise_pdf(data, gauss_with_tail_pdf, mu, sigma,  tau)
+    pdf = (lambda_b * bkg +\
+             lambda_s *  sig)
+    return lambda_s+lambda_b, pdf
+
+def normalise_pdf(x, pdf_func, *params):
+    xs = np.arange(np.nanmin(x), np.nanmax(x), 0.1)
+    try:
+        norm_pdf_values = pdf_func(xs, *params)
+        normalisation = simps(norm_pdf_values, xs, axis = 0)
+    except:
+        normalisation = np.nan
+    return pdf_func(x, *params)/normalisation, normalisation
+
+def gauss_with_tail_pdf(x, mu, sigma,  tau): #htail,
+    peak = gauss_norm_pdf(x,mu,sigma)
+    try: 
+        tail = gauss_tail(x, mu, sigma, tau)
+    except ZeroDivisionError: 
+        tail = np.nan
+    return peak+tail
+
+@nb.njit(**kwd)
+def step_pdf(x,  mu, sigma, hstep):
+    invs = (np.sqrt(2)*sigma)
+    z = (x-mu)/invs
+    step_f = 1 + hstep * nb_erf(z)
+    return step_f
+
+@nb.njit(**kwd)
+def gauss_norm_pdf(x, mu, sigma):
+    if sigma ==0: invs=np.nan
+    else: invs = 1.0 / sigma
+    z = (x - mu) * invs
+    invnorm = 1 / np.sqrt(2 * np.pi) * invs
+    return np.exp(-0.5 * z ** 2) * invnorm
+
+@nb.njit(**kwd)
+def nb_erf(x):
+    y = np.empty_like(x)
+    for i in nb.prange(len(x)):
+        y[i] = erfc(x[i])
+    return y
+
+@nb.njit(**kwd)
+def gauss_tail(x, mu, sigma, tau):
+    """
+    A gaussian tail function template
+    Can be used as a component of other fit functions
+    """
+    x = np.asarray(x)
+    tmp = ((x-mu)/tau) + ((sigma**2)/(2*tau**2))
+    tail_f = np.where(tmp < limit, 
+                      gauss_tail_exact(x, mu, sigma, tau), 
+                      gauss_tail_approx(x, mu, sigma, tau))
+    return tail_f
+
+@nb.njit(**kwd)
+def gauss_tail_exact(x, mu, sigma, tau):
+    tmp = ((x-mu)/tau) + ((sigma**2)/(2*tau**2))
+    abstau = np.absolute(tau)
+    tmp = np.where(tmp < limit, tmp, limit)
+    z = (x-mu)/sigma
+    tail_f = (1/(2*abstau)) * np.exp(tmp) * nb_erf( (tau*z + sigma)/(np.sqrt(2)*abstau))
+    return tail_f
+
+@nb.njit(**kwd)
+def gauss_tail_approx(x, mu, sigma, tau):
+    den = 1/(sigma + tau*(x-mu)/sigma)
+    tail_f = sigma * gauss_norm_pdf(x, mu, sigma) * den * (1.-tau*tau*den*den)
+    return tail_f
+
+def radford_pdf_fwhm(sigma, tau, cov = None):
+    """
+    Return the FWHM of the radford_peak function, ignoring background and
+    step components. TODO: also get the uncertainty
+    """
+    # optimize this to find max value
+    def neg_radford_peak_bgfree(E, sigma, tau, norm):
+        return -(1/norm)*gauss_with_tail_pdf(np.array([E,-5*sigma, 5*sigma]), 0, sigma, tau)[0]
+    
+    _, norm = normalise_pdf(np.array([0,-5*sigma, 5*sigma]), gauss_with_tail_pdf, 0, sigma, tau)
+    
+    res = minimize_scalar( neg_radford_peak_bgfree,
+                           args=(sigma,  tau, norm),
+                           bounds=(-sigma, sigma) )
+    Emax = res.x
+    half_max = -neg_radford_peak_bgfree(Emax, sigma, tau, norm)/2.
+
+    # root find this to find the half-max energies
+    def radford_peak_bgfree_halfmax(E, sigma, tau, half_max, norm):
+        return (1/norm)*gauss_with_tail_pdf(np.array([E,-5*sigma, 5*sigma]), 0, sigma, tau)[0] - half_max
+    
+    lower_hm = brentq( radford_peak_bgfree_halfmax,
+                       -(2.5*sigma/2 + tau), Emax,
+                       args = (sigma,  tau, half_max, norm) )
+    upper_hm = brentq( radford_peak_bgfree_halfmax,
+                       Emax, 2.5*sigma/2,
+                       args = (sigma, tau, half_max, norm) )
+        
+    if cov is None: return upper_hm - lower_hm
