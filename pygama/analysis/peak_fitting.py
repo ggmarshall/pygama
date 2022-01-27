@@ -2,11 +2,15 @@ import numpy as np
 from scipy.optimize import minimize, curve_fit, minimize_scalar, brentq
 from scipy.special import erf, erfc, gammaln
 from scipy.stats import crystalball
+from scipy.integrate import simps
 import sys
+import numba as nb
+import math
 
 import pygama.analysis.histograms as ph
 
 limit = np.log(sys.float_info.max)/10
+kwd = {"parallel": False, "fastmath": True}
 
 def fit_hist(func, hist, bins, var=None, guess=None,
              poissonLL=False, integral=None, method=None, bounds=None):
@@ -790,7 +794,7 @@ def gauss_norm_pdf(x, mu, sigma):
 def nb_erf(x):
     y = np.empty_like(x)
     for i in nb.prange(len(x)):
-        y[i] = erfc(x[i])
+        y[i] = math.erfc(x[i])
     return y
 
 @nb.njit(**kwd)

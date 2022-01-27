@@ -9,9 +9,6 @@ import pygama.genpar_tmp.cuts as cts
 import pickle as pkl
 import glob
 from iminuit import Minuit, cost, util
-from scipy.integrate import simps
-import numba as nb
-from math import erfc
 import sys
 from scipy.optimize import minimize, curve_fit, minimize_scalar, brentq
 from matplotlib.backends.backend_pdf import PdfPages
@@ -21,10 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from scipy.stats import chisquare
 
-
 sto = lh5.Store()
-kwd = {"parallel": False, "fastmath": True}
-limit = np.log(sys.float_info.max)/10
 
 def run_optimisation(file,opt_config,dsp_config, cuts, fom, db_dict=None, n_events=8000, **fom_kwargs):
     """
