@@ -187,15 +187,16 @@ def unbinned_energy_fit(energy, func, verbose=False, display=0):
         print(m.errors)
         print(m2.errors)
         plt.figure()
-        plt.plot(bin_cs, hist)
-        plt.plot(bin_cs, m2_fit)
-        plt.plot(bin_cs, m_fit)
+        plt.plot(bin_cs, hist, label='data')
+        plt.plot(bin_cs, m2_fit, label='1 simplex')
+        plt.plot(bin_cs, m_fit, label='0 simplex')
+        plt.legend()
         plt.show()
         
     frac_errors1 = np.sum(np.abs(np.array(m.errors)/np.array(m.values)))
     frac_errors2 = np.sum(np.abs(np.array(m2.errors)/np.array(m2.values)))
     
-    if np.isnan(m.errors).all() and np.isnan(m2.errors).all():
+    if (np.isnan(m.errors).all() and np.isnan(m2.errors).all()):
         print("extra simplex needed")
         m = Minuit(c, *x0)
         m.simplex().simplex().migrad()
@@ -204,8 +205,20 @@ def unbinned_energy_fit(energy, func, verbose=False, display=0):
         cs = chisquare(hist, m_fit)[0]/len(m.values)
         
         return m.values, m.errors, m.covariance, cs
+    
+    elif (frac_errors1>30 and frac_errors2>30):
+        
+        m3 = Minuit(c, *x0)
+        m3.simplex().simplex().migrad()
+        m3.hesse()
+        m3_fit = func(bin_cs, *m.values)[1]
+        cs3 = chisquare(hist, m_fit)[0]/len(m.values)
+        frac_errors3 = np.sum(np.abs(np.array(m3.errors)/np.array(m3.values)))
+        
+        if (frac_errors3<frac_errors1*0.9) and (frac_errors3<frac_errors2*0.9):
+            return m3.values, m3.errors, m3.covariance, cs3
 
-    elif np.isnan(m2.errors).all() or cs*1.1 < cs2:
+    if np.isnan(m2.errors).all() or cs*1.1 < cs2:
         return m.values, m.errors, m.covariance, cs
     
     elif np.isnan(m.errors).all() or cs2*1.1 < cs:
