@@ -596,7 +596,7 @@ def find_lowest_grid_point_save(grid, err_grid, opt_dict):
             total_lengths[index]+= param[index[i]]
     min_val = np.nanmin(grid)
     lowest_ixs = np.where((grid == min_val))
-    #print('Minimum value is :', min_val, '+-', err_grid[lowest_ixs][0])
+    #print(f'Minimum value is : {min_val} +- {err_grid[lowest_ixs][0]}')
     try:
         fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
     except:
@@ -605,7 +605,7 @@ def find_lowest_grid_point_save(grid, err_grid, opt_dict):
     #print(lowest_ixs)
     if len(lowest_ixs[0]) ==1:
         for i,key in enumerate(keys):
-            #print(key, ':',param_list[i][lowest_ixs[i]][0], 'us')
+            #print(f'{key} : {param_list[i][lowest_ixs[i]][0]}us')
             if i ==0:
                 db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
             else:
@@ -614,7 +614,7 @@ def find_lowest_grid_point_save(grid, err_grid, opt_dict):
         shortest_length = np.argmin(total_lengths[lowest_ixs])
         final_idxs = [lowest_ix[shortest_length] for lowest_ix in lowest_ixs]
         for i,key in enumerate(keys):
-            #print(key, ':',param_list[i][final_idxs[i]], 'us')
+            #print(f'{key} : {param_list[i][final_idxs[i]]}us')
             db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
     return lowest_ixs, fwhm_dict, db_dict
 

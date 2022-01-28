@@ -177,7 +177,7 @@ def build_processing_chain(lh5_in, dsp_config, db_dict = None,
                     first = args[i].find('db.')
                     out = re.findall("[\dA-Za-z_.]*", args[i][first+3:])[0]
                     lookup_path = out.split(".")
-                    database_str = f"db.{lookup_path[0]}.{lookup_path[1]}"
+                    database_str = f"db.{out}"
                     try:
                         node = db_dict
                         for key in lookup_path:
@@ -209,7 +209,7 @@ def build_processing_chain(lh5_in, dsp_config, db_dict = None,
                         first = init_args[i].find('db.')
                         out = re.findall("[\dA-Za-z_.]*", init_args[i][first+3:])[0]
                         lookup_path = out.split(".")
-                        database_str = f"db.{lookup_path[0]}.{lookup_path[1]}"
+                        database_str = f"db.{out}"
                         try:
                             node = db_dict
                             for key in lookup_path:
