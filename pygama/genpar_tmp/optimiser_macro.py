@@ -206,7 +206,7 @@ def unbinned_energy_fit(energy, func, verbose=False, display=0):
         
         return m.values, m.errors, m.covariance, cs
     
-    elif (frac_errors1>30 and frac_errors2>30):
+    elif (frac_errors1>10 and frac_errors2>10):
         
         m3 = Minuit(c, *x0)
         m3.simplex().simplex().migrad()
