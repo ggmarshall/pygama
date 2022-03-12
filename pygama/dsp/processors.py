@@ -80,3 +80,5 @@ from ._processors.gaussian_filter1d import gaussian_filter1d
 from ._processors.get_multi_local_extrema import get_multi_local_extrema
 from ._processors.multi_t_filter import multi_t_filter, remove_duplicates
 from ._processors.multi_a_filter import multi_a_filter
+from ._processors.upsampler import upsampler
+from ._processors.ctc import charge_trapping_correction
