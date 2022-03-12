@@ -4,7 +4,7 @@ import numpy as np
 import os,json
 import pathlib
 from scipy.optimize import curve_fit
-#import pygama.genpar_tmp.cuts as cut
+import pygama.pargen.cuts as cut
 import pygama.analysis.histograms as pgh
 import pygama.analysis.calibration as cal
 import pygama.analysis.peak_fitting as pgf
@@ -37,11 +37,14 @@ def energy_cal_th(files, energy_params,  save_path, lh5_path='raw',n_events=1500
     # Start the analysis
     ####################
     print('Load and apply quality cuts...',end=' ')
-    uncal_pass = lh5.load_nda(files,energy_params,lh5_path)
+    uncal_pass, uncal_cut = cut.load_nda_with_cuts(files,'raw',energy_params,  cut_parameters= cut_parameters, verbose=False)
     print("Done")
 
-    Nevents = len(uncal_pass[energy_params[0]])
-    print(f'{Nevents} events pass')
+    Npass = len(uncal_pass[energy_params[0]])
+    Ncut  = len(uncal_cut[energy_params[0]])
+    Ratio = 100.*float(Ncut)/float(Npass+Ncut)
+    print(f'{Npass} events pass')
+    print(f'{Ncut} events cut')
     
     glines    = [583.191, 727.330, 860.564,1592.53,1620.50,2103.53,2614.50] # gamma lines used for calibration
     range_keV = [(20,20),(30,30), (40,40),(40,25),(25,40),(40,40),(60,60)] # side bands width
