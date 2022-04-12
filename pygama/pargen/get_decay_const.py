@@ -5,6 +5,7 @@ import h5py
 import numpy as np
 from pygama.analysis import histograms as pgh
 import matplotlib.pyplot as plt
+import pathlib
 
 from pygama import __version__ as pygama_version
 from pygama.dsp.ProcessingChain import ProcessingChain
@@ -16,7 +17,11 @@ from pygama.dsp.build_processing_chain import *
 from pygama.dsp.errors import DSPFatal
 from pygama.pargen.cuts import generate_cuts, get_cut_indexes
 
-def get_decay_constant(slopes,  dict_file, overwrite=False):
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.backends.backend_pdf import PdfPages
+
+def get_decay_constant(slopes,  dict_file, wfs, plot_path = None, overwrite=False):
     
     """
     Finds the decay constant from the modal value of the tail slope after cuts
@@ -38,14 +43,12 @@ def get_decay_constant(slopes,  dict_file, overwrite=False):
     else:
         tau_dict = {}
 
-    try: 
-        tau_dict["pz"]["tau"]
-        if overwrite == False:
-            print('Tau already Calculated and Overwrite is False')
-            return
-    except: 
-        pass
-    
+
+    pz = tau_dict.get("pz")
+    if overwrite == False and pz is not None:
+        print('Tau already Calculated and Overwrite is False')
+        return
+
     counts, bins, var = pgh.get_hist(slopes, bins=50000, range=(-0.01,0))
     bin_centres = pgh.get_bin_centers(bins)
     tau = round(-1/(bin_centres[np.argmax(counts)]),1)
@@ -53,12 +56,47 @@ def get_decay_constant(slopes,  dict_file, overwrite=False):
     tau_dict["pz"] = {"tau":tau}
     with open(dict_file,'w') as fp:
         json.dump(tau_dict,fp, indent=4)
-    return
+    if plot_path is None:
+        return
+    else:
+        pathlib.Path(os.path.dirname(plot_path)).mkdir(parents=True, exist_ok=True)
+        with PdfPages(plot_path) as pdf:
+            mpl.use('pdf')
+            plt.rcParams['figure.figsize'] = (20, 12)
+            plt.rcParams['font.size'] = 12
+            fig,ax = plt.subplots()
+            bins = 10000 #change if needed
+            counts, bins, bars = ax.hist(slopes, bins=bins, histtype='step')
+            plot_max = np.argmax(counts)
+            in_min = plot_max - 10
+            if in_min <0:
+                in_min = 0
+            in_max = plot_max + 11
+            if in_max >= len(bins):
+                in_min = len(bins)-1
+            plt.xlabel("Slope")
+            plt.ylabel("Counts")
+            plt.yscale('log')
+            axins = ax.inset_axes([0.5, 0.45, 0.47, 0.47])
+            axins.hist(slopes[(slopes>bins[in_min])&(slopes<bins[in_max])], bins=200, histtype='step')
+            axins.set_xlim(bins[in_min], bins[in_max])
+            labels = ax.get_xticklabels()
+            ax.set_xticklabels(labels = labels, rotation=45)
+            pdf.savefig()
+            plt.close()
+
+            wf_idxs = np.random.choice(len(wfs),100)
+            plt.figure()
+            for wf_idx in wf_idxs:
+                plt.plot(np.arange(0,len(wfs[wf_idx]), 1), wfs[wf_idx])
+            plt.xlabel("Samples")
+            plt.ylabel("ADU")
+            pdf.savefig()
+            plt.close()
 
 
-def dsp_preprocess_decay_const(f_raw, dsp_config, database_file, database=None, lh5_tables=None,
-                               outputs=None, n_max=np.inf, buffer_len=3200,
-                               block_width=16, verbose=1, overwrite=False, chan_config=None):
+
+def dsp_preprocess_decay_const(f_raw, dsp_config, database_file, database=None, plot_path = None, verbose=0, overwrite=False):
     """
     This function calculates the pole zero constant for the input data
 
@@ -71,6 +109,22 @@ def dsp_preprocess_decay_const(f_raw, dsp_config, database_file, database=None, 
     database_file:  str
             Path to the output file, the macro will output this as a json file.
     """
+
+    tb_out = raw_to_dsp_no_save(f_raw,  dsp_config, database_file=database_file,  verbose=verbose, database=database)
+    if verbose>0: print("Processed Data")
+    cut_dict = generate_cuts(tb_out, parameters = {'bl_mean':4, 'bl_std':4,'bl_slope':4})
+    if verbose>0: 
+        print("Generated Cuts:", cut_dict)
+    idxs = get_cut_indexes(tb_out,cut_dict, verbose=False)
+    slopes = tb_out['tail_slope'].nda
+    wfs = tb_out['wf_blsub'].nda
+    get_decay_constant(slopes[idxs],database_file, wfs, plot_path=plot_path, overwrite=overwrite)
+
+
+
+def raw_to_dsp_no_save(f_raw, dsp_config, database_file, database=None, lh5_tables=None,
+                               outputs=None, n_max=np.inf, buffer_len=3200,
+                               block_width=16, verbose=1, chan_config=None):
 
     if isinstance(dsp_config, str):
         with open(dsp_config, 'r') as config_file:
@@ -150,14 +204,7 @@ def dsp_preprocess_decay_const(f_raw, dsp_config, database_file, database=None, 
                 # Update the wf_range to reflect the file position
                 e.wf_range = "{}-{}".format(e.wf_range[0]+start_row, e.wf_range[1]+start_row)
                 raise e
-    if verbose>0: print("Processed Data")
-    cut_dict = generate_cuts(tb_out, parameters = {'bl_mean':4, 'bl_std':4,'bl_slope':4})
-    if verbose>0: 
-        print("Generated Cuts:", cut_dict)
-    idxs = get_cut_indexes(tb_out,cut_dict, verbose=False)
-    slopes = tb_out['tail_slope'].nda
-    get_decay_constant(slopes[idxs],database_file)
-    return
+    return tb_out
 
 if __name__ == "__main__":
 
