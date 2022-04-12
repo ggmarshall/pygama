@@ -31,8 +31,17 @@ def generate_cuts(data, parameters, verbose=False):
         lower_bound = guess_pars[0]-10*guess_pars[1]
         upper_bound = guess_pars[0]+10*guess_pars[1]
         counts, bins, var = pgh.get_hist(par_array,bins = 1000, range = (lower_bound, upper_bound))
-        pars, errors, cov = pgf.fit_binned(pgf.gauss_pdf, counts, bins, var, cost_func='Least Squares', guess = guess_pars) #, bounds = get_bounds(*guess_pars, verbose=verbose)
-        mean,std,n_events = pars
+        def gauss_plus_tail(xs , *pars):
+            return pars[0] *pgf.gauss_with_tail_pdf(xs,*pars[1:])
+        pars1, errors1, cov1 = pgf.fit_binned(pgf.gauss_pdf, counts, bins, var, cost_func='Least Squares', guess = guess_pars)
+        guess_pars = [guess_pars[2],guess_pars[0],guess_pars[1],0.01,0.01, 0]
+        pars, errors, cov = pgf.fit_binned(gauss_plus_tail, counts, bins, var, cost_func='Least Squares', guess = guess_pars, fixed=[-1])  
+        cs1 = pgf.goodness_of_fit(np.where(counts==0, 1,counts), bins, var, pgf.gauss_pdf, pars1, method='Neyman', scale_bins=False)
+        cs2 = pgf.goodness_of_fit(np.where(counts==0, 1,counts), bins, var, gauss_plus_tail, pars, method='Neyman', scale_bins=False)
+        if cs1<cs2:
+            mean,std,n_events = pars1
+        else:
+            n_events,mean,std,htail,tau,components = pars
         if isinstance(num_sigmas, (int, float)):
             num_sigmas_left = num_sigmas
             num_sigmas_right = num_sigmas
@@ -69,6 +78,8 @@ def check_energy_dep(data, parameters, energy_param, verbose=False):
     """
     energy = data[energy_param]
     max_val = np.percentile(energy,99)
+    if max_val<2000:
+        return {}
     half_max = max_val/2
     window1 = (energy<half_max)
     window2 = (energy>half_max)
@@ -217,7 +228,7 @@ def get_cut_indexes(all_data, cut_dict, energy_param = 'trapEmax', verbose=False
     return indexes
 
 def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean':4,'bl_std':4, 'pz_std':4}, 
-                      energy_param = 'trapEmax',verbose=False):
+                      energy_param = 'trapTmax',verbose=False):
 
     """
 
@@ -255,9 +266,13 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
 
     if cut_file is None:
 
-        data = lh5.load_nda(files[0], all_params, lh5_group)
+        if len(files) ==1:
+            data = lh5.load_nda(files[0], all_params, lh5_group)
+        else:
+            data = lh5.load_nda(files[1], all_params, lh5_group)
         cut_dict = generate_cuts(data, cut_parameters, verbose=verbose)
-        energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax', verbose=verbose)
+        print(cut_dict)
+        energy_dep_dict = check_energy_dep(data, cut_parameters, energy_param, verbose=verbose)
         cut_dict.update(energy_dep_dict)
         print("Generated Cut Dictionary")
         if verbose: print(cut_dict)
@@ -272,7 +287,7 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
                 run1 = det_run
                 data = lh5.load_nda(file, all_params, lh5_group)
                 cut_dict = generate_cuts(data, cut_parameters, verbose=verbose)
-                energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax', verbose=verbose)
+                energy_dep_dict = check_energy_dep(data, cut_parameters, energy_param, verbose=verbose)
                 cut_dict.update(energy_dep_dict)
                 print(cut_dict)
 
@@ -337,8 +352,8 @@ def load_df_with_cuts(files, lh5_group, cut_file=None, cut_parameters= {'bl_mean
 
 
 
-def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_parameters= {'bl_mean':4,'bl_std':4, 'pz_std':4}, 
-                       energy_param = 'trapEmax',verbose=True):
+def load_nda_with_cuts(files, parameters, lh5_group,  cut_file=None,  cut_parameters= {'bl_mean':4,'bl_std':4, 'pz_std':4}, 
+                       energy_param = 'trapEmax', return_mask=False , verbose=True):
 
     """
 
@@ -385,7 +400,10 @@ def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_paramet
     all_params.append(energy_param)
 
     if cut_file is None:
-        data = lh5.load_nda(files[0], all_params, lh5_group)
+        if len(files) ==1:
+            data = lh5.load_nda(files[0], all_params, lh5_group)
+        else:
+            data = lh5.load_nda(files[1], all_params, lh5_group)
         cut_dict = generate_cuts(data, cut_parameters)
         energy_dep_dict = check_energy_dep(data, cut_parameters, 'trapEmax')
         cut_dict.update(energy_dep_dict)
@@ -460,5 +478,8 @@ def load_nda_with_cuts(files, lh5_group, parameters, cut_file=None,  cut_paramet
     for par in par_data:
         passed_cuts[par] = par_data[par][mask]
         failed_cuts[par] = par_data[par][~mask]
-    return passed_cuts, failed_cuts
+    if return_mask ==True:
+        return passed_cuts, failed_cuts, mask
+    else:
+        return passed_cuts, failed_cuts
 
