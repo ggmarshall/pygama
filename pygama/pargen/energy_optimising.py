@@ -580,33 +580,6 @@ def event_selection(raw_file, dsp_config, db_dict, peaks_keV, peak_idx, kev_widt
     final_events = wf_idxs[final_mask]
     return final_events
 
-def load_grids(files, parameter):
-    """
-    Loads in optimizer grids
-    """
-    peak_grids = []
-    for file in files:
-        with open(file,"rb") as d:
-            grid = pkl.load(d)
-        peak_grids.append(grid[parameter])
-    return peak_grids
-
-def load_config(path, filter_name):
-    """
-    Loads in optimizer configs
-    """
-    if filter_name =='Cusp':
-        opt_config = os.path.join(path, 'cusp_config.json')
-    elif filter_name =='Zac':
-        opt_config = os.path.join(path, 'zac_config.json')
-    elif filter_name =='Trap':
-        opt_config = os.path.join(path, 'etrap_config.json')
-    elif filter_name =='TTrap':
-        opt_config = os.path.join(path, 'ttrap_config.json')
-    with open(opt_config, 'r') as o:
-        opt_dict = json.load(o)
-    return opt_dict
-
 def get_ctc_grid(grids, ctc_param):
     """
     Reshapes optimizer grids to be in easier form
@@ -695,7 +668,8 @@ def find_lowest_grid_point_save(grid, err_grid, opt_dict):
     db_dict={}
     for key in keys:
         param_dict = opt_dict[opt_name][key]
-        grid_axis=np.linspace(param_dict['start'],param_dict['end'],param_dict['frequency'])
+        grid_axis=np.arange(param_dict['start'],param_dict['end'],param_dict['spacing'])
+        unit = param_dict.get('unit')
         param_list.append(grid_axis)
         shape.append(len(grid_axis))
        
@@ -706,27 +680,30 @@ def find_lowest_grid_point_save(grid, err_grid, opt_dict):
             total_lengths[index]+= param[index[i]]
     min_val = np.nanmin(grid)
     lowest_ixs = np.where((grid == min_val))
-    #print(f'Minimum value is : {min_val} +- {err_grid[lowest_ixs][0]}')
     try:
         fwhm_dict =  {'fwhm': min_val, 'fwhm_err': err_grid[lowest_ixs][0]}
     except:
         print(lowest_ixs)
-    #    fwhm_dict =  {'fwhm': np.nan, 'fwhm_err': np.nan}
-    #    return np.nan, fwhm_dict, np.nan
-    #print(lowest_ixs)
     if len(lowest_ixs[0]) ==1:
         for i,key in enumerate(keys):
-            #print(f'{key} : {param_list[i][lowest_ixs[i]][0]}us')
             if i ==0:
-                db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
+                if unit is not None:
+                    db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*{unit}'}
+                else:
+                    db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}'}
             else:
-                db_dict[opt_name][key] = f'{param_list[i][lowest_ixs[i]][0]}*us'
-    else:
+                if unit is not None:
+                    db_dict[opt_name][key] = f'{param_list[i][lowest_ixs[i]][0]}*{unit}'
+                else:
+                    db_dict[opt_name][key] = f'{param_list[i][lowest_ixs[i]][0]}'
+    else:           
         shortest_length = np.argmin(total_lengths[lowest_ixs])
         final_idxs = [lowest_ix[shortest_length] for lowest_ix in lowest_ixs]
         for i,key in enumerate(keys):
-            #print(f'{key} : {param_list[i][final_idxs[i]]}us')
-            db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*us'}
+            if unit is not None:
+                db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}*{unit}'}
+            else:
+                db_dict[opt_name] = {key:f'{param_list[i][lowest_ixs[i]][0]}'}
     return lowest_ixs, fwhm_dict, db_dict
 
 def interpolate_grid(energies, grids, int_energy, deg, nevents_grids):
@@ -774,9 +751,11 @@ def get_best_vals(peak_grids, peak_energies, param, opt_dict, save_path=None):
             keys = list(opt_dict.keys())
             print(keys)
             x_dict = opt_dict[keys[1]]
-            xs=(np.arange(0,x_dict['frequency'],1),np.linspace(x_dict['start'],x_dict['end'],x_dict['frequency']))
+            xvals=np.arange(x_dict['start'],x_dict['end'],x_dict['spacing'])
+            xs=(np.arange(0,len(xvals),1),np.arange(x_dict['start'],x_dict['end'],x_dict['spacing']))
             y_dict = opt_dict[keys[0]]
-            ys=(np.arange(0,y_dict['frequency'],1),np.linspace(y_dict['start'],y_dict['end'],y_dict['frequency']))
+            yvals=np.arange(y_dict['start'],y_dict['end'],y_dict['spacing'])
+            ys=(np.arange(0,len(yvals),1),np.arange(y_dict['start'],y_dict['end'],y_dict['spacing']))
             for i,x in enumerate(xs[1]):
                 xs[1][i] = round(x,1)
             for i,y in enumerate(ys[1]):
@@ -799,8 +778,11 @@ def get_best_vals(peak_grids, peak_energies, param, opt_dict, save_path=None):
             for i, dt_grid in enumerate(dt_grids):
                 plt.subplot(3,2,i+1)
                 v_min = np.nanmin(np.abs(dt_grid))
-                if v_min ==0:
-                    v_min = np.nanpercentile(np.abs(dt_grid),1)
+                if v_min==0:
+                    for j in range(10):
+                        v_min = np.nanpercentile(np.abs(dt_grid),j+1)
+                        if v_min>0.1:
+                            break
                 plt.imshow(dt_grid, norm=LogNorm(vmin=v_min, vmax=np.nanpercentile(dt_grid,98)), cmap='viridis')
                     
                 plt.xticks(xs[0],xs[1])
@@ -867,22 +849,7 @@ def get_best_vals(peak_grids, peak_energies, param, opt_dict, save_path=None):
             alphas = np.nan
     return alphas, fwhm_dict, db_dict, out_grid
 
-def match_config(parameters, opt_dicts):
-    """
-    Matches config to parameters
-    """
-    out_dict = {}
-    for opt_dict in opt_dicts:
-        key = list(opt_dict.keys())[0]
-        if key =='cusp':
-            out_dict['cuspEmax'] = opt_dict
-        elif key =='zac':
-            out_dict['zacEmax'] = opt_dict
-        elif key =='etrap':
-            out_dict['trapEmax'] = opt_dict
-    return out_dict
-
-def get_filter_params(files, opt_dicts, save_path=None):
+def get_filter_params(grids, matched_configs, peak_energies, parameters, save_path=None):
     """
     Finds best parameters for filter
     """
@@ -890,16 +857,10 @@ def get_filter_params(files, opt_dicts, save_path=None):
     full_db_dict = {}
     full_fwhm_dict = {}
     full_grids={}
-    parameters =['zacEmax', 'trapEmax', 'cuspEmax']
-    matched_configs = match_config(parameters, opt_dicts)
-    peak_energies = np.array([])
-    for f in files:
-        filename = os.path.basename(f)
-        peak_energy = float(filename.split('.p')[0])
-        peak_energies = np.append(peak_energies, peak_energy)
+    
     for param in parameters:
         opt_dict = matched_configs[param]
-        peak_grids = load_grids(files, param)
+        peak_grids = grids[param]
         ctc_params= list(peak_grids[0][0,0].keys())
         ctc_dict = {}
         
@@ -923,26 +884,3 @@ def get_filter_params(files, opt_dicts, save_path=None):
         full_db_dict.update(db_dict)
     return full_db_dict, full_fwhm_dict, full_grids
 
-def run_splitter(files):
-    """
-    Returns list containing lists of each run
-    """
-
-    if isinstance(files, str): files = [files]
-    # Expand wildcards
-    files = [f for f_wc in files for f in sorted(glob.glob(os.path.expandvars(f_wc)))]
-    
-    runs = []
-    run_files = []
-    for file in files:
-        base=os.path.basename(file)
-        file_name = os.path.splitext(base)[0]
-        parts = file_name.split('-')
-        run_no = parts[3]
-        if run_no not in runs:
-            runs.append(run_no)
-            run_files.append([])
-        for i,run in enumerate(runs):
-            if run == run_no:
-                run_files[i].append(file) 
-    return run_files
