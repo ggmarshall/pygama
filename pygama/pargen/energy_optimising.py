@@ -174,7 +174,7 @@ def simple_guess(hist, bins, var, func_i, fit_range):
         return [nsig_guess, mu, sigma, nbkg_guess, hstep,fit_range[0],fit_range[1], 0]
 
 
-def unbinned_energy_fit(energy, func, gof_func, gof_range, fit_range= (np.inf,np.inf),verbose=False, display=0):
+def unbinned_energy_fit(energy, func, gof_func, gof_range, fit_range= (np.inf,np.inf),tol=None,verbose=False, display=0):
     
     """
     Unbinned fit to energy. This is different to the default fitting as 
@@ -188,29 +188,44 @@ def unbinned_energy_fit(energy, func, gof_func, gof_range, fit_range= (np.inf,np
     bin_cs1 = (bins[:-1]+bins[1:])/2
     x0 = simple_guess(hist1, bins, var, func, fit_range)
     if verbose:print(x0)
-    hist, bins,var = pgh.get_hist(energy,dx=1, range= gof_range)
-    bin_cs = (bins[:-1]+bins[1:])/2
-    
     c = cost.ExtendedUnbinnedNLL(energy, func)
     m = Minuit(c, *x0)
+    if tol is not None:
+        m.tol = tol
     m.fixed[-3:] = True
-    m.limits = pgc.get_hpge_E_bounds(func)
     m.migrad()
     m.hesse()
+    
+    hist, bins,var = pgh.get_hist(energy,dx=1, range= gof_range)
+    bin_cs = (bins[:-1]+bins[1:])/2
+    m_fit = func(bin_cs1, *m.values)[1]
+    
+    
+    valid1 = m.valid & m.accurate & (~np.isnan(m.errors).any()) & (~(np.array(m.errors[:-3])==0).all())
+    
     cs = pgf.goodness_of_fit(hist, bins, None, gof_func, m.values[:-3] , method='Pearson')
     cs = cs[0]/cs[1]
-    
     m2 = Minuit(c, *x0)
+    if tol is not None:
+        m2.tol = tol
     m2.fixed[-3:] = True
-    m2.limits = pgc.get_hpge_E_bounds(func)
     m2.simplex().migrad()
     m2.hesse()
+    m2_fit = func(bin_cs1, *m2.values)[1]
+    valid2 = m2.valid & m2.accurate & (~np.isnan(m.errors).any()) & (~(np.array(m2.errors[:-3])==0).all())
+    
     cs2 = pgf.goodness_of_fit(hist, bins, None, gof_func, m2.values[:-3] , method='Pearson')
     cs2 = cs2[0]/cs2[1]
+    
+    frac_errors1 = np.sum(np.abs(np.array(m.errors)[:-3]/np.array(m.values)[:-3]))
+    frac_errors2 = np.sum(np.abs(np.array(m2.errors)[:-3]/np.array(m2.values)[:-3]))
+    
+    if verbose:
+        print(m)
+        print(m2)
+        print(frac_errors1, frac_errors2)
 
     if display >1:
-        print(m.errors)
-        print(m2.errors)
         m_fit = gof_func(bin_cs1, *m.values)
         m2_fit = gof_func(bin_cs1, *m2.values)
         plt.figure()
@@ -218,25 +233,24 @@ def unbinned_energy_fit(energy, func, gof_func, gof_range, fit_range= (np.inf,np
         plt.plot(bin_cs1, func(bin_cs1, *x0)[1], label=f'Guess')
         plt.plot(bin_cs1, m_fit, label=f'Fit 1: {cs}')
         plt.plot(bin_cs1, m2_fit, label=f'Fit 2: {cs2}')
-        plt.plot(bin_cs1, m3_fit, label=f'Fit 3: {cs3}')
         plt.legend()
         plt.show()
-        
-    frac_errors1 = np.sum(np.abs(np.array(m.errors)[:-3]/np.array(m.values)[:-3]))
-    frac_errors2 = np.sum(np.abs(np.array(m2.errors)[:-3]/np.array(m2.values)[:-3]))
     
-    if ((np.isnan(m.errors).any() and np.isnan(m2.errors).any()) or 
-    ((np.array(m.errors[:-3])==0).all() and ((np.array(m2.errors[:-3])==0).all()))):
+    if  valid1 ==False and valid2==False:
         print("extra simplex needed")
         m = Minuit(c, *x0)
+        if tol is not None:
+            m.tol = tol
         m.fixed[-3:] = True
         m.limits = pgc.get_hpge_E_bounds(func)
         m.simplex().simplex().migrad()
         m.hesse()
+        if verbose:
+            print(m)
         cs = pgf.goodness_of_fit(hist, bins, None, gof_func, m.values[:-3] , method='Pearson')
         cs = cs[0]/cs[1]
-
-        if np.isnan(m.errors).any():
+        valid3 = m.valid & m.accurate & (~np.isnan(m.errors).any()) & (~(np.array(m.errors[:-3])==0).all())
+        if valid3==False:
             raise RuntimeError
         
         pars =  np.array(m.values)[:-1]
@@ -244,13 +258,13 @@ def unbinned_energy_fit(energy, func, gof_func, gof_range, fit_range= (np.inf,np
         cov = np.array(m.covariance)[:-1,:-1]
         csqr = cs
 
-    elif np.isnan(m2.errors).any() or cs*1.05 < cs2 or ((np.array(m2.errors[:-3])==0)).all():
+    elif valid2==False or cs*1.05 < cs2:
         pars =  np.array(m.values)[:-1]
         errs = np.array(m.errors)[:-3]
         cov = np.array(m.covariance)[:-1,:-1]
         csqr = cs
     
-    elif np.isnan(m.errors).any() or cs2*1.05 < cs or ((np.array(m.errors[:-3])==0)).all():
+    elif valid1==False or cs2*1.05 < cs:
         pars =  np.array(m2.values)[:-1]
         errs = np.array(m2.errors)[:-3]
         cov = np.array(m2.covariance)[:-1,:-1]
@@ -300,10 +314,14 @@ def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, gof_func, peak, kev_wid
         gof_range = (mu - (7 * adc_to_kev), mu + (7* adc_to_kev))
     else:
         gof_range = (mu - (5 * adc_to_kev), mu + (5* adc_to_kev))
+    if kev==True:
+        tol=0.01
+    else:
+        tol=None
     try:   
         if display >0:
             energy_pars, energy_err, cov, chisqr = unbinned_energy_fit(ct_energy[win_idxs], func, gof_func,
-                                                                        gof_range,fit_range,verbose=True, display=display)
+                                                                        gof_range,fit_range, tol=tol, verbose=True, display=display)
             print(energy_pars)
             print(energy_err) 
             print(cov)
@@ -314,7 +332,7 @@ def get_peak_fwhm_with_dt_corr(Energies, alpha,dt, func, gof_func, peak, kev_wid
             plt.plot(xs , gof_func(xs, *energy_pars))
             plt.show()
         else:
-            energy_pars, energy_err, cov, chisqr = unbinned_energy_fit(ct_energy[win_idxs], func, gof_func,gof_range,fit_range)
+            energy_pars, energy_err, cov, chisqr = unbinned_energy_fit(ct_energy[win_idxs], func, gof_func,gof_range,fit_range, tol=tol)
         if func == pgf.extended_radford_pdf:
             if (energy_pars[3] < 1e-6 and energy_err[3] < 1e-6):
                 fwhm = energy_pars[2]*2*np.sqrt(2*np.log(2))
@@ -417,6 +435,8 @@ def fom_FWHM_with_dt_corr_fit(tb_in,verbosity, kwarg_dict, ctc_parameter, displa
             fwhms = np.append(fwhms,fwhm_o_max)
             final_alphas = np.append(final_alphas, alpha) 
             fwhm_errs = np.append(fwhm_errs, fwhm_o_max_err)
+        if verbosity>1:
+            print(f"alpha: {alpha}, fwhm/max:{fwhm_o_max}+-{fwhm_o_max_err}")
     
     # Make sure fit isn't based on only a few points
     if len(fwhms)< 10:
