@@ -5,26 +5,28 @@ separately using the optimiser, then the resulting grids are interpolated
 to provide the best energy resolution at Qbb
 """
 
-
 import numpy as np
 import os,json
+import pathlib
+import pickle as pkl
+
 from pygama.analysis import histograms as pgh
 import pygama.lh5 as lh5
 import pygama.dsp.dsp_optimize as opt
 import pygama.analysis.peak_fitting as pgf
 import pygama.analysis.calibration as pgc
 import pygama.pargen.cuts as cts
-import pickle as pkl
-import glob
+
 from iminuit import Minuit, cost, util
-import sys
-from scipy.optimize import minimize, curve_fit, minimize_scalar, brentq
+
+from scipy.optimize import curve_fit
+from scipy.stats import chisquare
+
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib as mpl
-import pathlib
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
-from scipy.stats import chisquare
+
 
 sto = lh5.Store()
 
@@ -281,7 +283,6 @@ def unbinned_energy_fit(energy, func, gof_func, gof_range, fit_range= (np.inf,np
         errs = np.array(m2.errors)[:-3]
         cov = np.array(m2.covariance)[:-1,:-1]
         csqr = cs2
-    
 
     else:
         raise RuntimeError

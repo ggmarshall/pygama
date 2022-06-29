@@ -2,11 +2,14 @@ import numpy as np
 import pandas as pd
 import os
 import json
+import glob
+
 from pygama.analysis import histograms as pgh
 import pygama.analysis.peak_fitting as pgf
 import pygama.lh5 as lh5
+
 import matplotlib.pyplot as plt
-import glob
+
 
 def generate_cuts(data, parameters, verbose=False):
     """

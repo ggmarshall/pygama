@@ -1,18 +1,13 @@
 import argparse, os
 import json
 from collections import OrderedDict
-import h5py
 import numpy as np
-from pygama.analysis import histograms as pgh
-import matplotlib.pyplot as plt
 import pathlib
 
-from pygama import __version__ as pygama_version
-from pygama.dsp.ProcessingChain import ProcessingChain
+from pygama.analysis import histograms as pgh
 from pygama.dsp.units import *
 from pygama import lh5
 from pygama.utils import tqdm_range
-import pygama.git as git
 from pygama.dsp.build_processing_chain import *
 from pygama.dsp.errors import DSPFatal
 from pygama.pargen.cuts import generate_cuts, get_cut_indexes
