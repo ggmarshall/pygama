@@ -87,7 +87,7 @@ def hpge_find_E_peaks(
             sum(sum(sum(c) if (c != None).any() else 0 for c in pt_covs)) == np.inf
             or sum(sum(sum(c) if (c != None).any() else 0 for c in pt_covs)) == 0
         ):
-            print(
+            log.debug(
                 "hpge_find_E_peaks: can safely ignore previous covariance warning, not used"
             )
         pt_pars = pt_pars[np.array([x is not None for x in pt_pars])]
@@ -99,7 +99,7 @@ def hpge_find_E_peaks(
     )
 
     if len(ixtup) != len(peaks_keV):
-        log.warning(
+        log.info(
             f"hpge_find_E_peaks: only found {len(ixtup)} of {len(peaks_keV)} expected peaks"
         )
     return detected_max_locs[ixtup], peaks_keV[iytup], pars
@@ -265,7 +265,7 @@ def get_hpge_E_peak_par_guess(hist, bins, var, func):
         pars, cov = pgf.gauss_mode_width_max(hist, bins, var)
         bin_centres = pgh.get_bin_centers(bins)
         if pars is None:
-            log.warning("get_hpge_E_peak_par_guess: gauss_mode_width_max failed")
+            log.info("get_hpge_E_peak_par_guess: gauss_mode_width_max failed")
             i_0 = np.argmax(hist)
             mu = bin_centres[i_0]
             height = hist[i_0]
@@ -302,7 +302,7 @@ def get_hpge_E_peak_par_guess(hist, bins, var, func):
                 method="fit_slopes",
             )[0]
             if sigma == 0:
-                log.warning("get_hpge_E_peak_par_guess: sigma estimation failed")
+                log.info("get_hpge_E_peak_par_guess: sigma estimation failed")
                 if sigma_guess is not None:
                     sigma = sigma_guess
                 else:
@@ -327,7 +327,7 @@ def get_hpge_E_peak_par_guess(hist, bins, var, func):
         pars, cov = pgf.gauss_mode_width_max(hist, bins, var)
         bin_centres = pgh.get_bin_centers(bins)
         if pars is None:
-            log.warning("get_hpge_E_peak_par_guess: gauss_mode_width_max failed")
+            log.info("get_hpge_E_peak_par_guess: gauss_mode_width_max failed")
             sigma_guess = None
 
         else:
@@ -366,7 +366,7 @@ def get_hpge_E_peak_par_guess(hist, bins, var, func):
                 method="fit_slopes",
             )[0]
             if sigma == 0:
-                log.warning("get_hpge_E_peak_par_guess: sigma estimation failed")
+                log.info("get_hpge_E_peak_par_guess: sigma estimation failed")
                 if sigma_guess is not None:
                     sigma = sigma_guess
                 else:
