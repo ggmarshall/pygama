@@ -41,8 +41,16 @@ def load_data(
 
     pulser_props = cts.find_pulser_properties(df, energy="daqenergy")
     if len(pulser_props) > 0:
-        out_df = cts.tag_pulsers(df, pulser_props, window=0.001)
-        ids = ~(out_df.isPulser == 1)
+        final_mask = None
+        for entry in pulser_props:
+            e_cut = (df.daqenergy.values < entry[0] + entry[1]) & (
+                df.daqenergy.values > entry[0] - entry[1]
+            )
+            if final_mask is None:
+                final_mask = e_cut
+            else:
+                final_mask = final_mask | e_cut
+        ids = ~(final_mask)
         log.debug(f"pulser found: {pulser_props}")
     else:
         log.debug("no_pulser")
@@ -63,7 +71,6 @@ def load_data(
 def get_decay_constant(
     slopes: np.array, wfs: lgdo.WaveformTable, display: int = 0
 ) -> dict:
-
     """
     Finds the decay constant from the modal value of the tail slope after cuts
     and saves it to the specified json.
@@ -114,13 +121,13 @@ def get_decay_constant(
         plt.rcParams["figure.figsize"] = (10, 6)
         plt.rcParams["font.size"] = 8
         fig, ax = plt.subplots()
-        bins = 10000  # change if needed
+        bins = np.linspace(-0.01, 0, 100000)  # change if needed
         counts, bins, bars = ax.hist(slopes, bins=bins, histtype="step")
         plot_max = np.argmax(counts)
-        in_min = plot_max - 10
+        in_min = plot_max - 20
         if in_min < 0:
             in_min = 0
-        in_max = plot_max + 11
+        in_max = plot_max + 21
         if in_max >= len(bins):
             in_min = len(bins) - 1
         plt.xlabel("Slope")
@@ -132,6 +139,7 @@ def get_decay_constant(
             bins=200,
             histtype="step",
         )
+        axins.axvline(high_bin, color="red")
         axins.set_xlim(bins[in_min], bins[in_max])
         labels = ax.get_xticklabels()
         ax.set_xticklabels(labels=labels, rotation=45)
@@ -146,7 +154,6 @@ def get_decay_constant(
 
 
 def fom_dpz(tb_data, verbosity=0, rand_arg=None):
-
     std = tb_data["pz_std"].nda
     counts, start_bins, var = pgh.get_hist(std, dx=0.1, range=(0, 400))
     max_idx = np.argmax(counts)

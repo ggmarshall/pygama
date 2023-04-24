@@ -241,7 +241,6 @@ def unbinned_energy_fit(
     verbose=False,
     display=0,
 ):
-
     """
     Unbinned fit to energy. This is different to the default fitting as
     it will try different fitting methods and choose the best. This is necessary for the lower statistics.
@@ -359,8 +358,16 @@ def unbinned_energy_fit(
             & (~np.isnan(m.errors).any())
             & (~(np.array(m.errors[:-3]) == 0).all())
         )
-        if valid3 == False:
-            raise RuntimeError
+        if valid3 is False:
+            try:
+                m.minos()
+                valid3 = (
+                    m.valid
+                    & (~np.isnan(m.errors).any())
+                    & (~(np.array(m.errors[:-3]) == 0).all())
+                )
+            except:
+                raise RuntimeError
 
         pars = np.array(m.values)[:-1]
         errs = np.array(m.errors)[:-1]
@@ -409,7 +416,6 @@ def get_peak_fwhm_with_dt_corr(
     kev=False,
     display=0,
 ):
-
     """
     Applies the drift time correction and fits the peak returns the fwhm, fwhm/max and associated errors,
     along with the number of signal events and the reduced chi square of the fit. Can return result in ADC or keV.
@@ -924,8 +930,16 @@ def event_selection(
 
     pulser_props = cts.find_pulser_properties(df, energy="daqenergy")
     if len(pulser_props) > 0:
-        out_df = cts.tag_pulsers(df, pulser_props, window=0.001)
-        ids = out_df.isPulser == 1
+        final_mask = None
+        for entry in pulser_props:
+            e_cut = (df.daqenergy.values < entry[0] + entry[1]) & (
+                df.daqenergy.values > entry[0] - entry[1]
+            )
+            if final_mask is None:
+                final_mask = e_cut
+            else:
+                final_mask = final_mask | e_cut
+        ids = final_mask
         log.debug(f"pulser found: {pulser_props}")
     else:
         log.debug("no_pulser")
@@ -944,7 +958,7 @@ def event_selection(
         hist,
         bins,
         var,
-        np.array([238.632, 583.191, 727.330, 860.564, 1620.5, 2614.553]),
+        np.array([238.632, 583.191, 727.330, 860.564, 1620.5, 2103.53, 2614.553]),
     )
     log.debug(f"detected {detected_peaks_keV} keV peaks at {detected_peaks_locs}")
 
@@ -1001,7 +1015,7 @@ def event_selection(
     cut_dict = cts.generate_cuts(tb_data, cut_parameters)
     log.debug(f"Cuts are: {cut_dict}")
     log.debug("Loaded Cuts")
-    ct_mask = cts.get_cut_indexes(tb_data, cut_dict, "raw")
+    ct_mask = cts.get_cut_indexes(tb_data, cut_dict)
 
     final_events = []
     for peak_idx in peak_idxs:
@@ -1043,6 +1057,10 @@ def event_selection(
         final_mask = (energy > e_lower_lim) & (energy < e_upper_lim)
         final_events.append(peak_ids[final_mask][:n_events])
         log.info(f"{len(peak_ids[final_mask][:n_events])} passed selections for {peak}")
+        if len(peak_ids[final_mask]) < 0.5 * n_events:
+            log.warning("Less than half number of specified events found")
+        elif len(peak_ids[final_mask]) < 0.1 * n_events:
+            log.error("Less than 10% number of specified events found")
 
     sort_index = np.argsort(np.concatenate(final_events))
     idx_list = get_wf_indexes(sort_index, [len(mask) for mask in final_events])
@@ -1060,14 +1078,11 @@ def fwhm_slope(x, m0, m1, m2):
 
 
 def interpolate_energy(peak_energies, points, err_points, energy):
-
     nan_mask = np.isnan(points) | (points < 0)
     if len(points[~nan_mask]) < 3:
         return np.nan, np.nan, np.nan
-    elif nan_mask[-1] == True or nan_mask[-2] == True:
-        return np.nan, np.nan, np.nan
     else:
-        param_guess = [0.2, 0.001, 0.000001]  #
+        param_guess = [2, 0.001, 0.000001]  #
         # param_bounds = (0, [10., 1. ])#
         try:
             fit_pars, fit_covs = curve_fit(
@@ -1091,8 +1106,10 @@ def interpolate_energy(peak_energies, points, err_points, energy):
         except:
             return np.nan, np.nan, np.nan
 
-        if nan_mask[-2] == True:
-            qbb_vals += qbb_err
+        if nan_mask[-1] == True or nan_mask[-2] == True:
+            qbb_err = np.nan
+        if qbb_err / fit_qbb > 0.1:
+            qbb_err = np.nan
 
     return fit_qbb, qbb_err, fit_pars
 
@@ -1181,11 +1198,11 @@ def single_peak_fom(data, kwarg_dict):
         data, peak_dicts[0], ctc_param, idxs=idx_list[0], display=0
     )
     out_dict["y_val"] = out_dict["fwhm"]
+    out_dict["y_err"] = out_dict["fwhm_err"]
     return out_dict
 
 
 def new_fom(data, kwarg_dict):
-
     peaks = kwarg_dict["peaks_keV"]
     idx_list = kwarg_dict["idx_list"]
     ctc_param = kwarg_dict["ctc_param"]
@@ -1226,6 +1243,7 @@ def new_fom(data, kwarg_dict):
 
     return {
         "y_val": qbb,
+        "y_err": qbb_err,
         "qbb_fwhm": qbb,
         "qbb_fwhm_err": qbb_err,
         "alpha": alpha,
@@ -1246,19 +1264,17 @@ class BayesianOptimizer:
     np.random.seed(55)
     lambda_param = 0.01
     eta_param = 0
-    kernel = None
     # FIXME: the following throws a TypeError
     # kernel=ConstantKernel(1.0, constant_value_bounds="fixed") * RBF(1, length_scale_bounds="fixed") #+ WhiteKernel(noise_level=0.0111)
 
-    def __init__(self, acq_func, batch_size):
-
+    def __init__(self, acq_func, batch_size, kernel=None):
         self.dims = []
         self.current_iter = 0
 
         self.batch_size = batch_size
         self.iters = 0
 
-        self.gauss_pr = GaussianProcessRegressor(kernel=self.kernel)
+        self.gauss_pr = GaussianProcessRegressor(kernel=kernel)
         self.best_samples_ = pd.DataFrame(columns=["x", "y", "ei"])
         self.distances_ = []
 
@@ -1277,12 +1293,12 @@ class BayesianOptimizer:
     def get_n_dimensions(self):
         return len(self.dims)
 
-    def add_initial_values(self, x_init, y_init):
+    def add_initial_values(self, x_init, y_init, yerr_init):
         self.x_init = x_init
         self.y_init = y_init
+        self.yerr_init = yerr_init
 
     def _get_expected_improvement(self, x_new):
-
         mean_y_new, sigma_y_new = self.gauss_pr.predict(
             np.array([x_new]), return_std=True
         )
@@ -1296,14 +1312,12 @@ class BayesianOptimizer:
         return exp_imp
 
     def _get_ucb(self, x_new):
-
         mean_y_new, sigma_y_new = self.gauss_pr.predict(
             np.array([x_new]), return_std=True
         )
         return mean_y_new[0] + self.lambda_param * sigma_y_new[0]
 
     def _get_lcb(self, x_new):
-
         mean_y_new, sigma_y_new = self.gauss_pr.predict(
             np.array([x_new]), return_std=True
         )
@@ -1352,9 +1366,10 @@ class BayesianOptimizer:
 
         return x_optimal, min_ei
 
-    def _extend_prior_with_posterior_data(self, x, y):
+    def _extend_prior_with_posterior_data(self, x, y, yerr):
         self.x_init = np.append(self.x_init, np.array([x]), axis=0)
         self.y_init = np.append(self.y_init, np.array(y), axis=0)
+        self.yerr_init = np.append(self.yerr_init, np.array(yerr), axis=0)
 
     def get_first_point(self):
         y_min_ind = np.nanargmin(self.y_init)
@@ -1390,9 +1405,12 @@ class BayesianOptimizer:
 
     def update(self, results):
         y_val = results["y_val"]
-        self._extend_prior_with_posterior_data(self.current_x, np.array([y_val]))
+        y_err = results["y_err"]
+        self._extend_prior_with_posterior_data(
+            self.current_x, np.array([y_val]), np.array([y_err])
+        )
 
-        if np.isnan(y_val):
+        if np.isnan(y_val) | np.isnan(y_err):
             pass
         else:
             if y_val < self.y_min:
@@ -1432,19 +1450,28 @@ class BayesianOptimizer:
 
     def plot(self, init_samples=None):
         nan_idxs = np.isnan(self.y_init)
+        fail_idxs = np.isnan(self.yerr_init)
         self.gauss_pr.fit(self.x_init[~nan_idxs], np.array(self.y_init)[~nan_idxs])
         if (len(self.dims) != 2) and (len(self.dims) != 1):
             raise Exception("Acquisition Function Plotting not implemented for dim!=2")
         elif len(self.dims) == 1:
             points = np.arange(self.dims[0].min_val, self.dims[0].max_val, 0.1)
             ys = np.zeros_like(points)
+            ys_err = np.zeros_like(points)
             for i, point in enumerate(points):
-                ys[i] = self.gauss_pr.predict(
-                    np.array([point]).reshape(1, -1), return_std=False
+                ys[i], ys_err[i] = self.gauss_pr.predict(
+                    np.array([point]).reshape(1, -1), return_std=True
                 )
             fig = plt.figure()
-            plt.plot(points, ys)
-            plt.scatter(np.array(self.x_init), np.array(self.y_init))
+
+            plt.scatter(np.array(self.x_init), np.array(self.y_init), label="Samples")
+            plt.scatter(
+                np.array(self.x_init)[fail_idxs],
+                np.array(self.y_init)[fail_idxs],
+                color="green",
+                label="Failed samples",
+            )
+            plt.fill_between(points, ys - ys_err, ys + ys_err, alpha=0.1)
             if init_samples is not None:
                 init_ys = np.array(
                     [
@@ -1456,17 +1483,15 @@ class BayesianOptimizer:
                     np.array(init_samples)[:, 0],
                     np.array(self.y_init)[init_ys],
                     color="red",
+                    label="Init Samples",
                 )
-            plt.scatter(
-                self.optimal_x[0],
-                self.y_min,
-                color="orange",
-            )
+            plt.scatter(self.optimal_x[0], self.y_min, color="orange", label="Optimal")
 
             plt.xlabel(
                 f"{self.dims[0].name}-{self.dims[0].parameter}({self.dims[0].unit})"
             )
             plt.ylabel(f"Kernel Value")
+            plt.legend()
         elif len(self.dims) == 2:
             x, y = np.mgrid[
                 self.dims[0].min_val : self.dims[0].max_val : 0.1,
@@ -1541,7 +1566,7 @@ class BayesianOptimizer:
                 ys[i] = self.acq_function(np.array([point]).reshape(1, -1)[0])
             fig = plt.figure()
             plt.plot(points, ys)
-            plt.scatter(np.array(self.x_init), np.array(self.y_init))
+            plt.scatter(np.array(self.x_init), np.array(self.y_init), label="Samples")
             if init_samples is not None:
                 init_ys = np.array(
                     [
@@ -1553,17 +1578,15 @@ class BayesianOptimizer:
                     np.array(init_samples)[:, 0],
                     np.array(self.y_init)[init_ys],
                     color="red",
+                    label="Init Samples",
                 )
-            plt.scatter(
-                self.optimal_x[0],
-                self.y_min,
-                color="orange",
-            )
+            plt.scatter(self.optimal_x[0], self.y_min, color="orange", label="Optimal")
 
             plt.xlabel(
                 f"{self.dims[0].name}-{self.dims[0].parameter}({self.dims[0].unit})"
             )
             plt.ylabel(f"Acquisition Function Value")
+            plt.legend()
 
         elif len(self.dims) == 2:
             x, y = np.mgrid[
@@ -1683,6 +1706,8 @@ def run_optimisation(
         param_dict = optimiser.get_best_vals()
         out_param_dict.update(param_dict)
         results_dict = optimiser.optimal_results
+        if np.isnan(results_dict["y_val"]):
+            log.error(f"Energy optimisation failed for {optimiser.dims[0][0]}")
         out_results_list.append(results_dict)
 
     return out_param_dict, out_results_list
@@ -1883,7 +1908,6 @@ def get_best_vals(peak_grids, peak_energies, param, opt_dict, save_path=None):
         pathlib.Path(os.path.dirname(save_path)).mkdir(parents=True, exist_ok=True)
 
         with PdfPages(save_path) as pdf:
-
             keys = list(opt_dict.keys())
             print(keys)
             x_dict = opt_dict[keys[1]]

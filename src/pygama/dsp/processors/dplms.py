@@ -4,6 +4,7 @@ from typing import Callable
 
 import numpy as np
 from numba import guvectorize
+from scipy.signal import fftconvolve
 
 from pygama.dsp.errors import DSPFatal
 from pygama.dsp.utils import numba_defaults_kwargs as nb_kwargs
@@ -76,7 +77,6 @@ def dplms(
         raise DSPFatal("The length of the filter must be positive")
 
     if len(coefficients) > 0:
-
         if length != len(coefficients):
             raise DSPFatal("The length and the provided filter are not matching")
 
@@ -166,6 +166,6 @@ def dplms(
         if len(x) > len(w_in):
             raise DSPFatal("The filter is longer than the input waveform")
 
-        w_out[:] = np.convolve(w_in, np.flip(x), "valid")
+        w_out[:] = fftconvolve(w_in, np.flip(x), "valid")
 
     return dplms_out
