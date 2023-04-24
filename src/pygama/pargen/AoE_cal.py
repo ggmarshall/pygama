@@ -8,6 +8,8 @@ import json
 import logging
 import os
 import pathlib
+import re
+from datetime import datetime
 
 import matplotlib as mpl
 
@@ -15,7 +17,9 @@ mpl.use("agg")
 import matplotlib.cm as cmx
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import numpy as np
+import pandas as pd
 from iminuit import Minuit, cost, util
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LogNorm
@@ -26,43 +30,102 @@ import pygama.math.histogram as pgh
 import pygama.math.peak_fitting as pgf
 import pygama.pargen.ecal_th as thc
 import pygama.pargen.energy_cal as pgc
+import pygama.pargen.cuts as cts
+from pygama.math.peak_fitting import nb_erfc
 
 log = logging.getLogger(__name__)
 
+def tag_pulser(files, lh5_path):
+    pulser_df = lh5.load_dfs(files, ["timestamp", "trapTmax"], lh5_path)
+    pulser_props = cts.find_pulser_properties(pulser_df, energy="trapTmax")
+    if len(pulser_props) > 0:
+        final_mask = None
+        for entry in pulser_props:
+            e_cut = (pulser_df.trapTmax.values < entry[0] + entry[1]) & (
+                pulser_df.trapTmax.values > entry[0] - entry[1]
+            )
+            if final_mask is None:
+                final_mask = e_cut
+            else:
+                final_mask = final_mask | e_cut
+        ids = ~(final_mask)
+        log.debug(f"pulser found: {pulser_props}")
+    else:
+        ids = np.ones(len(pulser_df), dtype=bool)
+        log.debug(f"no pulser found")
+    return ids
 
 def load_aoe(
     files: list,
     lh5_path: str,
     cal_dict: dict,
-    energy_param: str,
-    cal_energy_param: str,
-    cut_field: str = "Cal_cuts",
+    params:["A_max", "tp_0_est", "tp_99", "dt_eff", 
+            'cuspEmax', "cuspEmax_ctc_cal", "is_valid_cal"],
+    energy_param: str
 ) -> tuple(np.array, np.array, np.array, np.array):
 
     """
     Loads in the A/E parameters needed and applies calibration constants to energy
     """
 
+    #switch this to dataframes, include timestamp
+
     sto = lh5.LH5Store()
-
-    params = ["A_max", "tp_0_est", "tp_99", "dt_eff", energy_param, cal_energy_param]
-
-    table = sto.read_object(lh5_path, files)[0]
-    df = table.eval(cal_dict).get_dataframe()
+    
+    if isinstance(files, dict):
+        if len(list(files))>1:
+            df = []
+            all_files = []
+            for tstamp, tfiles in files.items():
+                table = sto.read_object(lh5_path, tfiles)[0]
+                if tstamp in cal_dict:
+                    file_df = table.eval(cal_dict[tstamp]).get_dataframe()
+                else:
+                    file_df = table.eval(cal_dict).get_dataframe()
+                file_df["timestamp"] = np.full(len(file_df),tstamp,dtype=object)
+                ids = tag_pulser(tfiles, lh5_path)
+                file_df["is_not_pulser"] = ids
+                params.append("is_not_pulser")
+                params.append("timestamp")
+                df.append(file_df)
+                all_files += tfiles
+                
+            df = pd.concat(df)
+            
+        else:
+            for tstamp, tfiles in files.items():
+                table = sto.read_object(lh5_path, tfiles)[0]
+                if tstamp in cal_dict:
+                    df = table.eval(cal_dict[tstamp]).get_dataframe()
+                else:
+                    df = table.eval(cal_dict).get_dataframe()
+                df["timestamp"] = np.full(len(df),tstamp,dtype=object)
+                params.append("timestamp")
+                ids = tag_pulser(tfiles, lh5_path)
+                df["is_not_pulser"] = ids
+                params.append("is_not_pulser")
+                all_files = tfiles
+                
+    elif isinstance(files, list):
+        table = sto.read_object(lh5_path, files)[0]
+        df = table.eval(cal_dict).get_dataframe()
+        ids = tag_pulser(tfiles, lh5_path)
+        df["is_not_pulser"] = ids
+        params.append("is_not_pulser")
+        all_files = files
+    
+    for col in list(df.keys()):
+        if col not in params:
+            df.drop(col, inplace=True,axis=1)
 
     param_dict = {}
     for param in params:
         # add cuts in here
-        if param in df:
-            param_dict[param] = df[param].to_numpy()
-        else:
-            param_dict.update(lh5.load_nda(files, [param], lh5_path))
-    if cut_field in df.keys():
-        for entry in param_dict:
-            param_dict[entry] = param_dict[entry][df[cut_field].to_numpy()]
-
-    aoe = np.divide(param_dict["A_max"], param_dict[energy_param])
-    return aoe, param_dict[cal_energy_param], param_dict["dt_eff"]
+        if param not in df:
+            df[param] = lh5.load_nda(all_files, [param], lh5_path)[param]
+            
+    df["AoE_uncorr"] = np.divide(df["A_max"], df[energy_param])
+    return df
 
 
 def PDF_AoE(
@@ -132,7 +195,7 @@ def unbinned_aoe_fit(
     fmax = mu + 5 * sigma
 
     bg_guess = len(aoe[(aoe < fmax) & (aoe > fmin)]) - ls_guess
-    x0 = [ls_guess, bg_guess, mu, sigma, 0.01, fmin, fmax, 0]
+    x0 = [ls_guess, bg_guess, mu, sigma, 0.2, fmin, fmax, 0]
     if verbose:
         print(x0)
 
@@ -145,9 +208,14 @@ def unbinned_aoe_fit(
     if verbose:
         print(m)
 
-    valid = m.valid & m.accurate
-    if valid == False:
-        return np.full_like(x0, np.nan), np.full_like(x0, np.nan)
+    if np.isnan(m.errors).all():
+        try:
+            m.simplex.migrad()
+            m.minos()
+            if np.isnan(m.errors).all():
+                raise RuntimeError
+        except:
+            return np.full_like(x0, np.nan), np.full_like(x0, np.nan)
 
     if display > 1:
         plt.figure()
@@ -179,19 +247,122 @@ def unbinned_aoe_fit(
     else:
         return m.values, m.errors
 
+def fit_time_means(tstamps,means, errs):
+    out_dict = {}
+    current_tstamps = []
+    current_means = []
+    current_errs = []
+    rolling_mean = means[np.where((np.abs(np.diff(means))<(5*np.array(errs)[1:]))&\
+                                  (~np.isnan(np.abs(np.diff(means))<(5*np.array(errs)[1:]))))[0][0]]
+    for i,tstamp in enumerate(tstamps):
+        if np.abs(means[i]-rolling_mean) >  5* errs[i] or np.isnan(means[i]) or np.isnan(errs[i]):
+            if i+1 == len(means):
+                out_dict[tstamp] = np.nan
+            else:
+                if np.abs(means[i+1]-means[i]) <  5* errs[i+1] and not (np.isnan(means[i]) or np.isnan(means[i+1]) or np.isnan(errs[i]) or np.isnan(errs[i+1])):
+                    for ts in current_tstamps:
+                        out_dict[ts] = rolling_mean
+                    rolling_mean= means[i]
+                    current_means = [means[i]]
+                    current_tstamps=[tstamp]
+                    current_errs = [errs[i]]
+                else:
+                    out_dict[tstamp] = np.nan
+        else:
+            current_tstamps.append(tstamp)
+            current_means.append(means[i])
+            current_errs.append(errs[i])
+            rolling_mean = np.average(current_means, weights=1/ np.array(current_errs))
+    for tstamp in current_tstamps:
+        out_dict[tstamp] = rolling_mean
+    return out_dict
+
+def aoe_timecorr(df, energy_param, plot_dict={} , display=0):
+    if "timestamp" in df:
+        tstamps = sorted(np.unique(df["timestamp"]))
+        if len(tstamps)>1:
+            means = []
+            errors = []
+            reses=[]
+            res_errs = []
+            final_tstamps=[]
+            for tstamp, time_df in df.groupby("timestamp", sort=True):
+                pars, errs = unbinned_aoe_fit(
+                    time_df.query(f"is_valid_cal& is_not_pulser & cuspEmax_ctc_cal>1000 & cuspEmax_ctc_cal<1300")["AoE_uncorr"])
+                final_tstamps.append(tstamp)
+                means.append(pars[2])
+                errors.append(errs[2])
+                reses.append(pars[3]/pars[2])
+                res_errs.append(reses[-1]*np.sqrt(errs[3]/pars[3] + errs[2]/pars[2]))
+            mean_dict = fit_time_means(tstamps,means, errors)
+            
+            df["AoE_timecorr"] = df["AoE_uncorr"] /np.array([mean_dict[tstamp] for tstamp in df["timestamp"]])
+            out_dict = {tstamp:
+            {"AoE_Timecorr": {
+                "expression": f"(A_max/{energy_param})/a",
+                "parameters": {"a": mean_dict[tstamp]},
+            }} for tstamp in mean_dict
+            }
+            if display>0:
+                fig1, ax = plt.subplots(1,1)
+                ax.errorbar([datetime.strptime(tstamp, '%Y%m%dT%H%M%SZ') for tstamp in tstamps],
+                            means, yerr = errors, linestyle=" ")
+                ax.step([datetime.strptime(tstamp, '%Y%m%dT%H%M%SZ') for tstamp in list(mean_dict)], 
+                        [mean_dict[tstamp] for tstamp in mean_dict], where="post")
+                ax.set_xlabel("time")
+                ax.set_ylabel("A/E mean")
+                myFmt = mdates.DateFormatter('%b %d')
+                ax.xaxis.set_major_formatter(myFmt)
+                plot_dict["aoe_time"] = fig1
+                if display > 1:
+                    plt.show()
+                else:
+                    plt.close()
+                fig2, ax = plt.subplots(1,1)
+                ax.errorbar([datetime.strptime(tstamp, '%Y%m%dT%H%M%SZ') for tstamp in tstamps],
+                            reses, yerr = res_errs, linestyle=" ")
+                ax.set_xlabel("time")
+                ax.set_ylabel("A/E res")
+                myFmt = mdates.DateFormatter('%b %d')
+                ax.xaxis.set_major_formatter(myFmt)
+                plot_dict["aoe_res"] = fig2
+                if display > 1:
+                    plt.show()
+                else:
+                    plt.close()
+                return df, out_dict, {"times":tstamps, "mean":means,
+                 "mean_errs":errors, "res": reses, 
+                 "res_errs":res_errs},  plot_dict
+            else:
+                return df, out_dict, {"times":tstamps, "mean":means, 
+                "mean_errs":errors , "res": reses, "res_errs":res_errs}
+    pars, errs = unbinned_aoe_fit(
+        data.query("is_valid_cal& is_not_pulser & cuspEmax_ctc_cal>1000 & cuspEmax_ctc_cal<1300")["AoE_uncorr"])
+    df["AoE_timecorr"]=df["AoE_uncorr"]/pars[2]
+    out_dict = {
+    "AoE_Timecorr": {
+        "expression": f"(A_max/{energy_param})/a",
+        "parameters": {"a": pars[2]},
+    }
+    }
+    if display>0:
+        return df, out_dict, {"times":[np.nan], "mean":[pars[2]], "res": [pars[2]/pars[3]]}, plot_dict
+    else:
+        return df, out_dict, {"times":[np.nan], "mean":[pars[2]], "res": [pars[2]/pars[3]]}
 
 def pol1(x: np.array, a: float, b: float) -> np.array:
     """Basic Polynomial for fitting A/E centroid against energy"""
     return a * x + b
 
 
-def sigma_fit(x: np.array, a: float, b: float) -> np.array:
+def sigma_fit(x: np.array, a: float, b: float, c: float) -> np.array:
     """Function definition for fitting A/E sigma against energy"""
-    return np.sqrt(a + (b / x) ** 2)
+    return np.sqrt(a + (b / x) ** c)
 
 
 def AoEcorrection(
-    energy: np.array, aoe: np.array, eres: list, plot_dict: dict = {}, display: int = 0
+    energy: np.array, aoe: np.array, eres: list, plot_dict: dict = {}, display: int = 0,
+    comptBands_width = 20
 ) -> tuple(np.array, np.array):
 
     """
@@ -199,61 +370,21 @@ def AoEcorrection(
     Does this by fitting the compton continuum in slices and then applies fits to the centroid and variance.
     """
 
-    comptBands_width = 20
-    comptBands = np.array(
-        [
-            940,
-            960,
-            980,
-            1000,
-            1020,
-            1040,
-            1130,
-            1150,
-            1170,
-            1190,
-            1210,
-            1250,
-            1270,
-            1290,
-            1310,
-            1330,
-            1370,
-            1390,
-            1420,
-            1520,
-            1540,
-            1650,
-            1700,
-            1780,
-            1810,
-            1850,
-            1870,
-            1890,
-            1910,
-            1930,
-            1950,
-            1970,
-            1990,
-            2010,
-            2030,
-            2050,
-            2150,
-            2170,
-            2190,
-            2210,
-            2230,
-            2250,
-            2270,
-            2290,
-            2310,
-            2330,
-            2350,
-        ]
-    )
+    comptBands =  np.arange(900,2350,comptBands_width)
+    peaks = np.array([1080,1094,1459,1512, 1552, 1592,1620, 1650, 1670,1830,2105])
+    allowed =np.array([],dtype=bool)
+    for i, band in enumerate(comptBands):
+        allow=True
+        for peak in peaks:
+            if (peak-5)>band and (peak-5)<(band+ comptBands_width):
+                allow = False
+            elif (peak+5>band) and (peak+5)<(band + comptBands_width):
+                allow = False
+        allowed = np.append(allowed,allow)
+    comptBands = comptBands[allowed]
+
     results_dict = {}
     comptBands = comptBands[::-1]  # Flip so color gets darker when plotting
-    # peaks = np.array([1080,1094,1459,1512, 1552, 1592,1620, 1650, 1670,1830,2105])
     compt_aoe = np.zeros(len(comptBands))
     aoe_sigmas = np.zeros(len(comptBands))
     compt_aoe_err = np.zeros(len(comptBands))
@@ -354,7 +485,7 @@ def AoEcorrection(
     results_dict["csqr_mu"] = (csqr_mu, dof_mu)
 
     # Fit sigma against energy
-    p0_sig = [np.nanpercentile(aoe_sigmas[~ids], 50) ** 2, 2]
+    p0_sig = [np.nanpercentile(aoe_sigmas[~ids], 50) ** 2, 2, 2]
     c_sig = cost.LeastSquares(
         comptBands[~ids], aoe_sigmas[~ids], aoe_sigmas_err[~ids], sigma_fit
     )
@@ -384,9 +515,13 @@ def AoEcorrection(
     peak = 1592
     emin = peak - n_sigma * sigma
     emax = peak + n_sigma * sigma
-    dep_pars, dep_err = unbinned_aoe_fit(
-        aoe[(energy > emin) & (energy < emax) & (aoe > 0)][:10000]
-    )
+    try:
+        dep_pars, dep_err = unbinned_aoe_fit(
+            aoe[(energy > emin) & (energy < emax) & (aoe > 0)][:10000]
+        )
+    except:
+        dep_pars = np.full(6,np.nan)
+        dep_err = np.full(6,np.nan)
 
     if display > 0:
         mean_fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
@@ -443,7 +578,7 @@ def AoEcorrection(
         ax1.plot(
             comptBands[~ids],
             sig_model[~ids],
-            label=f"sqrt model: sqrt({sig_pars[0]:1.4f}+({sig_pars[1]:1.1f}/E)^2)",
+            label=f"sqrt model: sqrt({sig_pars[0]:1.4f}+({sig_pars[1]:1.1f}/E)^{sig_pars[2]:1.1f})",
         )  # {sig_pars[2]:1.1f}
         ax1.errorbar(
             1592,
@@ -553,7 +688,7 @@ def energy_guess(hist, bins, var, func_i, peak, eres_pars, fit_range):
         hstep = step / (bg0 + np.mean(hist[:10]))
         dx = np.diff(bins)[0]
         n_bins_range = int((3 * sigma) // dx)
-        nsig_guess = np.sum(hist[i_0 - n_bins_range : i_0 + n_bins_range])
+        nsig_guess = np.sum(hist[i_0 - n_bins_range : i_0 + n_bins_range])-((n_bins_range*2)*(bg0-step/2))
         nbkg_guess = np.sum(hist) - nsig_guess
         if nbkg_guess < 0:
             nbkg_guess = 0
@@ -597,17 +732,17 @@ def unbinned_energy_fit(
     eres_pars: list = None,
     simplex=False,
     guess=None,
+    display=0,
     verbose: bool = False,
 ) -> tuple(np.array, np.array):
-
     """
     Fitting function for energy peaks used to calculate survival fractions
     """
     hist, bins, var = pgh.get_hist(
         energy, dx=0.5, range=(np.nanmin(energy), np.nanmax(energy))
     )
+    sigma = thc.fwhm_slope(peak, *eres_pars) / 2.355
     if guess is None:
-
         x0 = energy_guess(
             hist,
             bins,
@@ -619,6 +754,16 @@ def unbinned_energy_fit(
         )
         c = cost.ExtendedUnbinnedNLL(energy, pgf.extended_gauss_step_pdf)
         m = Minuit(c, *x0)
+        m.limits = [
+        (0, None),
+        (peak-1, peak+1),
+        (None, None),
+         (0, None),
+        (None, None),
+        (None, None),
+        (None, None),
+        (None, None),
+    ]
         m.fixed[-3:] = True
         m.simplex().migrad()
         m.hesse()
@@ -627,32 +772,52 @@ def unbinned_energy_fit(
         x0 += m.values[3:]
         if verbose:
             print(m)
-    else:
-        x0 = guess
-    if len(x0) == 0:
-        return [np.nan], [np.nan]
-
-    fixed, mask = pgc.get_hpge_E_fixed(pgf.extended_radford_pdf)
-    if verbose:
-        print(x0)
-    c = cost.ExtendedUnbinnedNLL(energy, pgf.extended_radford_pdf)
-    m = Minuit(c, *x0)
-    if x0[0] <= 0:
-        sig_lim = 0.2 * len(energy)
-    else:
-        sig_lim = 1.2 * x0[0]
-    m.limits = [
-        (0, sig_lim),
-        (None, None),
-        (None, None),
-        (0, 1),
+        bounds = [
         (0, None),
-        (0, len(energy) * 1.1),
+        (peak-1, peak+1),
+        (None, None),
+        (0, None),
+        (None, None),
+        (0, None),
         (None, None),
         (None, None),
         (None, None),
         (None, None),
     ]
+    else:
+        x0 = guess
+        x1 = energy_guess(
+            hist,
+            bins,
+            var,
+            pgf.extended_radford_pdf,
+            peak,
+            eres_pars,
+            (np.nanmin(energy), np.nanmax(energy)),
+        )
+        x0[0]=x1[0]
+        x0[5]=x1[5]
+        bounds = [
+        (0, None),
+        (guess[1]-0.5, guess[1]+0.5),
+        sorted((0.8*guess[2], 1.2*guess[2])),
+        sorted((0.8*guess[3], 1.2*guess[3])),
+        sorted((0.8*guess[4], 1.2*guess[4])),
+        (0, None),
+        sorted((0.8*guess[6], 1.2*guess[6])),
+        (None, None),
+        (None, None),
+        (None, None),
+    ]
+    if len(x0) == 0:
+        return [np.nan], [np.nan]
+
+    fixed=[1,2,3,4,6,7,8,9]
+    if verbose:
+        print(x0)
+    c = cost.ExtendedUnbinnedNLL(energy, pgf.extended_radford_pdf)
+    m = Minuit(c, *x0)
+    m.limits = bounds
     for fix in fixed:
         m.fixed[fix] = True
     if simplex == True:
@@ -663,50 +828,25 @@ def unbinned_energy_fit(
     m.hesse()
     if verbose:
         print(m)
+    if display>1:
+        plt.figure()
+        bcs = (bins[1:]+bins[:-1])/2
+        plt.step(bcs,hist,where="mid")
+        plt.plot(bcs, pgf.radford_pdf(bcs, *x0)*np.diff(bcs)[0])
+        plt.plot(bcs, pgf.radford_pdf(bcs, *m.values)*np.diff(bcs)[0])
+        plt.show()
+    
 
-    valid = m.valid
-
-    if valid == True and not np.isnan(m.errors[:-3]).all():
+    if not np.isnan(m.errors[:-3]).all():
         return m.values, m.errors
     else:
-        x0 = energy_guess(
-            hist,
-            bins,
-            var,
-            pgf.extended_radford_pdf,
-            peak,
-            eres_pars,
-            (np.nanmin(energy), np.nanmax(energy)),
-        )
-        c = cost.ExtendedUnbinnedNLL(energy, pgf.extended_radford_pdf)
-        m = Minuit(c, *x0)
-        if x0[0] <= 0:
-            sig_lim = 0.2 * len(energy)
-        else:
-            sig_lim = 1.2 * x0[0]
-        m.limits = [
-            (0, sig_lim),
-            (None, None),
-            (None, None),
-            (0, 1),
-            (0, None),
-            (0, len(energy) * 1.1),
-            (None, None),
-            (None, None),
-            (None, None),
-            (None, None),
-        ]
-        for fix in fixed:
-            m.fixed[fix] = True
-        m.simplex().migrad()
-        m.hesse()
-        valid = m.valid
-        if verbose:
-            print(m)
-        if valid == True:
-            return m.values, m.errors
-        else:
-            return np.full_like(x0, np.nan), np.full_like(x0, np.nan)
+        try:
+            m.simplex().migrad()
+            m.minos()
+            if not np.isnan(m.errors[:-3]).all():
+                return m.values, m.errors
+        except:
+             return np.full_like(x0, np.nan), np.full_like(x0, np.nan)
 
 
 def get_peak_label(peak: float) -> str:
@@ -731,16 +871,27 @@ def get_survival_fraction(
     high_cut=None,
     guess_pars_cut=None,
     guess_pars_surv=None,
+    display=0
 ):
+    nan_idxs = np.isnan(aoe)
     if high_cut is not None:
         idxs = (aoe > cut_val) & (aoe < high_cut)
     else:
-        idxs = aoe > cut_val
+        idxs = (aoe > cut_val)
+    
+    if guess_pars_cut is None or guess_pars_surv is None:
+        pars, errs = unbinned_energy_fit(
+        energy, peak, eres_pars, simplex=True
+        )
+        guess_pars_cut = pars
+        guess_pars_surv = pars
+    
+        
     cut_pars, ct_errs = unbinned_energy_fit(
-        energy[~idxs], peak, eres_pars, guess=guess_pars_cut, simplex=True
+        energy[(~nan_idxs)&(~idxs)], peak, eres_pars, guess=guess_pars_cut, simplex=False, display=display, verbose=False
     )
     surv_pars, surv_errs = unbinned_energy_fit(
-        energy[idxs], peak, eres_pars, guess=guess_pars_surv, simplex=True
+        energy[(~nan_idxs)&(idxs)], peak, eres_pars, guess=guess_pars_surv, simplex=False,display=display
     )
 
     ct_n = cut_pars[0]
@@ -773,18 +924,10 @@ def get_aoe_cut_fit(
 
     min_range, max_range = ranges
 
-    peak_energy = energy[(energy > peak - min_range) & (energy < peak + max_range)][
-        :20000
-    ]
-    peak_aoe = aoe[(energy > peak - min_range) & (energy < peak + max_range)][:20000]
+    peak_energy = energy[(energy > peak - min_range) & (energy < peak + max_range)&(~np.isnan(aoe))]
+    peak_aoe = aoe[(energy > peak - min_range) & (energy < peak + max_range)&(~np.isnan(aoe))]
 
     cut_vals = np.arange(-8, 0, 0.2)
-    pars, errors = unbinned_energy_fit(peak_energy, peak, eres_pars, simplex=True)
-    if np.isnan(pars[0]):
-        print("first fit failed")
-        pars, errors = unbinned_energy_fit(peak_energy, peak, eres_pars, simplex=False)
-    pc_n = pars[0]
-    pc_err = errors[0]
     sfs = []
     sf_errs = []
     for cut_val in cut_vals:
@@ -802,17 +945,19 @@ def get_aoe_cut_fit(
 
     # return cut_vals, sfs, sf_errs
     ids = (
-        (sf_errs < (1.5 * np.nanpercentile(sf_errs, 70)))
+        (sf_errs < (1.5 * np.nanpercentile(sf_errs, 85)))
         & (~np.isnan(sf_errs))
-        & (np.array(sfs) < 95)
     )
-    fit = np.polynomial.polynomial.polyfit(
-        cut_vals[ids], np.array(sfs)[ids], w=1 / np.array(sf_errs)[ids], deg=6
-    )
+    def fit_func(x,a,b,c,d):
+        return (a+b*x)*nb_erfc(c*x+d)
 
+    c = cost.LeastSquares(cut_vals[ids], np.array(sfs)[ids], np.array(sf_errs)[ids], fit_func)
+    c.loss = "soft_l1"
+    m1 = Minuit(c, np.nanmax(sfs)/2,0,1,1.5)
+    m1.simplex().migrad()
     xs = np.arange(np.nanmin(cut_vals[ids]), np.nanmax(cut_vals[ids]), 0.01)
-    p = np.polynomial.polynomial.polyval(xs, fit)
-    cut_val = xs[np.argmin(np.abs(p - (100 * dep_acc)))]
+    p = fit_func(xs, *m1.values)
+    cut_val = round(xs[np.argmin(np.abs(p - (100 * 0.9)))],3)
 
     if display > 0:
         plt.figure()
@@ -824,6 +969,9 @@ def get_aoe_cut_fit(
         )
 
         plt.plot(xs, p)
+        plt.hline((100 * dep_acc),[xs[0], cut_val])
+        plt.vline(cut_val,[50, (100 * dep_acc)])
+        plt.ylim([50,100])
         plt.show()
 
     return cut_val
@@ -847,11 +995,11 @@ def get_sf(
     min_range = peak - fit_width[0]
     max_range = peak + fit_width[1]
     if peak == "1592.5":
-        peak_energy = energy[(energy > min_range) & (energy < max_range)][:20000]
-        peak_aoe = aoe[(energy > min_range) & (energy < max_range)][:20000]
+        peak_energy = energy[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))]
+        peak_aoe = aoe[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))]
     else:
-        peak_energy = energy[(energy > min_range) & (energy < max_range)][:50000]
-        peak_aoe = aoe[(energy > min_range) & (energy < max_range)][:50000]
+        peak_energy = energy[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))][:50000]
+        peak_aoe = aoe[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))][:50000]
     pars, errors = unbinned_energy_fit(peak_energy, peak, eres_pars, simplex=False)
     pc_n = pars[0]
     pc_err = errors[0]
@@ -907,7 +1055,6 @@ def compton_sf(
     eres: list[float, float],
     display: int = 1,
 ) -> tuple(float, np.array, list):
-
     """
     Determines survival fraction for compton continuum by basic counting
     """
@@ -917,12 +1064,15 @@ def compton_sf(
     emin = peak - 2 * fwhm
     emax = peak + 2 * fwhm
     sfs = []
-    aoe = aoe[(energy > emin) & (energy < emax)]
+    sf_errs=[]
+    aoe = aoe[(energy > emin) & (energy < emax)&(~np.isnan(aoe))]
     cut_vals = np.arange(-5, 5, 0.1)
     for cut_val in cut_vals:
         sfs.append(100 * len(aoe[(aoe > cut_val)]) / len(aoe))
+        sf_errs.append(sfs[-1] * np.sqrt((1/len(aoe)) + 1/len(aoe[(aoe > cut_val)])))
     sf = 100 * len(aoe[(aoe > cut)]) / len(aoe)
-    return sf, cut_vals, sfs
+    sf_err = sf * np.sqrt(1/len(aoe) + 1/len(aoe[(aoe > cut)]))
+    return cut_vals, sfs, sf_errs, sf, sf_err
 
 
 def get_sf_no_sweep(
@@ -943,11 +1093,11 @@ def get_sf_no_sweep(
     min_range = peak - fit_width[0]
     max_range = peak + fit_width[1]
     if peak == "1592.5":
-        peak_energy = energy[(energy > min_range) & (energy < max_range)][:20000]
-        peak_aoe = aoe[(energy > min_range) & (energy < max_range)][:20000]
+        peak_energy = energy[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))]
+        peak_aoe = aoe[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))]
     else:
-        peak_energy = energy[(energy > min_range) & (energy < max_range)][:50000]
-        peak_aoe = aoe[(energy > min_range) & (energy < max_range)][:50000]
+        peak_energy = energy[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))][:50000]
+        peak_aoe = aoe[(energy > min_range) & (energy < max_range)&(~np.isnan(aoe))][:50000]
 
     sf, sf_err, cut_pars, surv_pars = get_survival_fraction(
         peak_energy,
@@ -979,33 +1129,33 @@ def compton_sf_no_sweep(
     emin = peak - 2 * fwhm
     emax = peak + 2 * fwhm
     sfs = []
-    aoe = aoe[(energy > emin) & (energy < emax)]
-    cut_vals = np.arange(-5, 5, 0.1)
+    aoe = aoe[(energy > emin) & (energy < emax)&(~np.isnan(aoe))]
     if aoe_high_cut_val is None:
         sf = 100 * len(aoe[(aoe > aoe_low_cut_val)]) / len(aoe)
+        sf_err = sf * np.sqrt(1/len(aoe) + 1/len(aoe[(aoe > aoe_low_cut_val)]))
     else:
         sf = (
             100
             * len(aoe[(aoe > aoe_low_cut_val) & (aoe < aoe_high_cut_val)])
             / len(aoe)
         )
-    return sf
+        sf_err = sf * np.sqrt(1/len(aoe) + 1/len(aoe[(aoe > aoe_low_cut_val) & (aoe < aoe_high_cut_val)]))
+    return sf, sf_err
 
 
 def get_classifier(
-    aoe: np.array,
-    energy: np.array,
+    df,
+    cal_energy_param,
     mu_pars: list[float, float],
     sigma_pars: list[float, float],
 ) -> np.array:
-
     """
     Applies correction to A/E energy dependence
     """
 
-    classifier = aoe / (mu_pars[0] * energy + mu_pars[1])
-    classifier = (classifier - 1) / sigma_fit(energy, *sigma_pars)
-    return classifier
+    classifier = df["AoE_timecorr"] / (mu_pars[0] * df[cal_energy_param] + mu_pars[1])
+    df["AoE_classifier"] = (classifier - 1) / sigma_fit(df[cal_energy_param], *sigma_pars)
+    return df
 
 
 def get_dt_guess(hist: np.array, bins: np.array, var: np.array) -> list:
@@ -1222,37 +1372,68 @@ def cal_aoe(
     Main function for running the a/e correction and cut determination.
     """
 
-    aoe_uncorr, energy, dt = load_aoe(
-        files, lh5_path, cal_dict, energy_param, cal_energy_param, cut_field=cut_field
+    df = load_aoe(
+        files, lh5_path, cal_dict, 
+        ["A_max", "tp_0_est", "tp_99", "dt_eff", 
+        energy_param, cal_energy_param, cut_field],
+        energy_param=energy_param
     )
+    try:
+        df, timecorr_dict, res_dict = aoe_timecorr(df, energy_param)
+    except:
+        res_dict ={}
+        timecorr_dict = {
+                "AoE_Timecorr": {
+                    "expression": f"(A_max/{energy_param})/a",
+                    "parameters": {"a": np.nan},
+                }
+                }
+        
 
-    if dt_corr == True:
-        aoe, alpha = drift_time_correction(aoe_uncorr, energy, dt)
+    if re.match("(\d{8})T(\d{6})Z", list(cal_dict)[0]):
+        for tstamp in cal_dict:
+            if tstamp in timecorr_dict:
+                cal_dict[tstamp].update(timecorr_dict[tstamp])
+            else:
+                cal_dict[tstamp].update(timecorr_dict)
     else:
-        aoe = aoe_uncorr
+        cal_dict.update(timecorr_dict)
 
-    aoe_tmp = aoe[(energy > 1000) & (energy < 1300) & (aoe > 0)]  # [:20000]
-    bulk_pars, bulk_errs = unbinned_aoe_fit(aoe_tmp, display=0)
 
-    log.info("Starting A/E correction")
-    mu_pars, sigma_pars, results_dict = AoEcorrection(energy, aoe, eres_pars)
-    log.info("Finished A/E correction")
+    # if dt_corr == True:
+    #     aoe, alpha = drift_time_correction(aoe_uncorr, energy, dt)
+    # else:
+    #     aoe = aoe_uncorr
+    try:
+        log.info("Starting A/E correction")
+        mu_pars, sigma_pars, results_dict = AoEcorrection(
+            df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+            df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"],
+            eres_pars)
+        log.info("Finished A/E correction")
+        df = get_classifier(df, cal_energy_param, mu_pars, sigma_pars)
+    except:
+        log.error("A/E calibration failed")
+        mu_pars = np.full(2, np.nan)
+        sigma_pars = np.full(2, np.nan)
+        results_dict = {}
 
-    classifier = get_classifier(aoe, energy, mu_pars, sigma_pars)
 
-    cut = get_aoe_cut_fit(energy, classifier, 1592, (40, 20), 0.9, eres_pars, display=0)
+    
+    try:
+        cut = get_aoe_cut_fit(df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                            df.query("is_valid_cal& is_not_pulser")["AoE_classifier"], 
+                            1592, (40, 20), 0.9, eres_pars, display=0)
+        log.info(f"Cut found at {cut}")
+    except:
+        log.error("A/E cut determination failed")
+        cut = np.nan
 
-    cal_dict.update(
-        {
+    aoe_cal_dict = {
             "AoE_Corrected": {
-                "expression": f"(((A_max/{energy_param})/(a*{cal_energy_param} +b))-1)",
+                "expression": f"(((AoE_Timecorr)/(a*{cal_energy_param} +b))-1)",
                 "parameters": {"a": mu_pars[0], "b": mu_pars[1]},
-            }
-        }
-    )
-
-    cal_dict.update(
-        {
+            },
             "AoE_Classifier": {
                 "expression": f"AoE_Corrected/(sqrt(c+(d/{cal_energy_param})**2)/(a*{cal_energy_param} +b))",
                 "parameters": {
@@ -1261,27 +1442,23 @@ def cal_aoe(
                     "c": sigma_pars[0],
                     "d": sigma_pars[1],
                 },
-            }
-        }
-    )
-
-    cal_dict.update(
-        {
+            },
             "AoE_Low_Cut": {
                 "expression": "AoE_Classifier>a",
                 "parameters": {"a": cut},
-            }
-        }
-    )
-
-    cal_dict.update(
-        {
+            },
             "AoE_Double_Sided_Cut": {
                 "expression": "(b>AoE_Classifier)&(AoE_Classifier>a)",
                 "parameters": {"a": cut, "b": aoe_high_cut},
             }
+
         }
-    )
+    
+    if re.match("(\d{8})T(\d{6})Z", list(cal_dict)[0]):
+        for tstamp in cal_dict:
+            cal_dict[tstamp].update(aoe_cal_dict)
+    else:
+        cal_dict.update(aoe_cal_dict)
 
     try:
         log.info("  Compute low side survival fractions: ")
@@ -1296,17 +1473,20 @@ def cal_aoe(
 
         for i, peak in enumerate(peaks_of_interest):
             if peak == 2039:
-                sf[i], cut_vals, sfs = compton_sf(
-                    energy, classifier, cut, peak, eres_pars
+                cut_vals, sfs, sf_errs, sf[i], sferr[i] = compton_sf(
+                    df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                    df.query("is_valid_cal& is_not_pulser")["AoE_classifier"], 
+                    cut, peak, eres_pars
                 )
-                sferr[i] = 0
 
                 full_cut_vals.append(cut_vals)
                 full_sfs.append(sfs)
-                full_sf_errs.append(None)
+                full_sf_errs.append(sf_errs)
             else:
                 cut_vals, sfs, sf_errs, sf[i], sferr[i] = get_sf(
-                    energy, classifier, peak, fit_widths[i], cut, eres_pars
+                    df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                    df.query("is_valid_cal& is_not_pulser")["AoE_classifier"], 
+                    peak, fit_widths[i], cut, eres_pars
                 )
                 full_cut_vals.append(cut_vals)
                 full_sfs.append(sfs)
@@ -1319,19 +1499,18 @@ def cal_aoe(
         log.info("Calculating 2 sided cut sfs")
         for i, peak in enumerate(peaks_of_interest):
             if peak == 2039:
-                sf_2side[i] = compton_sf_no_sweep(
-                    energy,
-                    classifier,
+                sf_2side[i], sferr_2side[i] = compton_sf_no_sweep(
+                    df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                    df.query("is_valid_cal& is_not_pulser")["AoE_classifier"], 
                     peak,
                     eres_pars,
                     cut,
                     aoe_high_cut_val=aoe_high_cut,
                 )
-                sferr_2side[i] = 0
             else:
                 sf_2side[i], sferr_2side[i] = get_sf_no_sweep(
-                    energy,
-                    classifier,
+                    df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                    df.query("is_valid_cal& is_not_pulser")["AoE_classifier"], 
                     peak,
                     fit_widths[i],
                     eres_pars,
@@ -1356,7 +1535,7 @@ def cal_aoe(
             "Cal_energy_param": cal_energy_param,
             "dt_param": "dt_eff",
             "rt_correction": dt_corr,
-            "1000-1300keV_mean": bulk_pars[2],
+            "1000-1300keV": res_dict,
             "Mean_pars": list(mu_pars),
             "Sigma_pars": list(sigma_pars),
             "Low_cut": cut,
@@ -1375,15 +1554,30 @@ def cal_aoe(
 
             fig1 = plt.figure()
             plt.subplot(3, 2, 1)
-            plot_dt_dep(aoe, energy, dt, [1582, 1602], f"Tl DEP")
+            plot_dt_dep(df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"], 
+                        df.query("is_valid_cal& is_not_pulser")[cal_energy_param],
+                        df.query("is_valid_cal& is_not_pulser")["dt_eff"],  
+                        [1582, 1602], f"Tl DEP")
             plt.subplot(3, 2, 2)
-            plot_dt_dep(aoe, energy, dt, [1510, 1630], f"Bi FEP")
+            plot_dt_dep(df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"], 
+                        df.query("is_valid_cal& is_not_pulser")[cal_energy_param],
+                        df.query("is_valid_cal& is_not_pulser")["dt_eff"],  
+                        [1510, 1630], f"Bi FEP")
             plt.subplot(3, 2, 3)
-            plot_dt_dep(aoe, energy, dt, [2030, 2050], "Qbb")
+            plot_dt_dep(df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"], 
+                        df.query("is_valid_cal& is_not_pulser")[cal_energy_param],
+                        df.query("is_valid_cal& is_not_pulser")["dt_eff"],   
+                        [2030, 2050], "Qbb")
             plt.subplot(3, 2, 4)
-            plot_dt_dep(aoe, energy, dt, [2080, 2120], f"Tl SEP")
+            plot_dt_dep(df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"], 
+                        df.query("is_valid_cal& is_not_pulser")[cal_energy_param],
+                        df.query("is_valid_cal& is_not_pulser")["dt_eff"],   
+                        [2080, 2120], f"Tl SEP")
             plt.subplot(3, 2, 5)
-            plot_dt_dep(aoe, energy, dt, [2584, 2638], f"Tl FEP")
+            plot_dt_dep(df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"], 
+                        df.query("is_valid_cal& is_not_pulser")[cal_energy_param],
+                        df.query("is_valid_cal& is_not_pulser")["dt_eff"],   
+                        [2584, 2638], f"Tl FEP")
             plt.tight_layout()
             plot_dict["dt_deps"] = fig1
             if display > 1:
@@ -1392,7 +1586,9 @@ def cal_aoe(
                 plt.close()
 
             fig2 = plt.figure()
-            plot_compt_bands_overlayed(aoe, energy, [950, 1250, 1460, 1660, 1860, 2060])
+            plot_compt_bands_overlayed(df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"], 
+                                        df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                                        [950, 1250, 1460, 1660, 1860, 2060])
             plt.ylabel("Counts")
             plt.xlabel("Raw A/E")
             plt.title(f"Compton Bands before Correction")
@@ -1403,18 +1599,23 @@ def cal_aoe(
             else:
                 plt.close()
 
-            if dt_corr == True:
-                _, plot_dict = drift_time_correction(
-                    aoe_uncorr, energy, dt, display=display, plot_dict=plot_dict
-                )
+            # if dt_corr == True:
+            #     _, plot_dict = drift_time_correction(
+            #         aoe_uncorr, energy, dt, display=display, plot_dict=plot_dict
+            #     )
 
-            mu_pars, sigma_pars, results_dict, plot_dict = AoEcorrection(
-                energy, aoe, eres_pars, plot_dict, display=display
+            _,_ , _,plot_dict= aoe_timecorr(df, energy_param, plot_dict=plot_dict, display=display)
+
+            _,_,_, plot_dict = AoEcorrection(
+                df.query("is_valid_cal& is_not_pulser")[cal_energy_param], 
+                df.query("is_valid_cal& is_not_pulser")["AoE_timecorr"],
+                eres_pars, plot_dict=plot_dict, display=display
             )
 
             fig3 = plt.figure()
-            plot_compt_bands_overlayed(
-                classifier, energy, [950, 1250, 1460, 1660, 1860, 2060], [-5, 5]
+            plot_compt_bands_overlayed(df.query("is_valid_cal& is_not_pulser")["AoE_classifier"], 
+                                    df.query("is_valid_cal& is_not_pulser")[cal_energy_param],  
+                                    [950, 1250, 1460, 1660, 1860, 2060], [-5, 5]
             )
             plt.ylabel("Counts")
             plt.xlabel("Corrected A/E")
@@ -1430,25 +1631,18 @@ def cal_aoe(
             plt.vlines(cut, 0, 100, label=f"Cut Value: {cut:1.2f}", color="black")
 
             for i, peak in enumerate(peaks_of_interest):
-                if peak == 2039:
-                    plt.plot(
-                        full_cut_vals[i],
-                        full_sfs[i],
-                        label=f"{get_peak_label(peak)} {peak} keV: {sf[i]:2.1f} +/- {sferr[i]:2.1f} %",
-                    )
-                else:
-                    plt.errorbar(
-                        full_cut_vals[i],
-                        full_sfs[i],
-                        yerr=full_sf_errs[i],
-                        label=f"{get_peak_label(peak)} {peak} keV: {sf[i]:2.1f} +/- {sferr[i]:2.1f} %",
-                    )
+                plt.errorbar(
+                    full_cut_vals[i],
+                    full_sfs[i],
+                    yerr=full_sf_errs[i],
+                    label=f"{get_peak_label(peak)} {peak} keV: {sf[i]:2.1f} +/- {sferr[i]:2.1f} %",
+                )
 
             handles, labels = plt.gca().get_legend_handles_labels()
-            order = [1, 2, 3, 0, 4, 5]
+            #order = [1, 2, 3, 0, 4, 5]
             plt.legend(
-                [handles[idx] for idx in order],
-                [labels[idx] for idx in order],
+                # [handles[idx] for idx in order],
+                # [labels[idx] for idx in order],
                 loc="upper right",
             )
             plt.xlabel("Cut Value")
@@ -1461,21 +1655,21 @@ def cal_aoe(
 
             fig5, ax = plt.subplots()
             bins = np.linspace(1000, 3000, 2000)
-            ax.hist(energy, bins=bins, histtype="step", label="Before PSD")
+            ax.hist(df.query(f"is_valid_cal& is_not_pulser")[cal_energy_param], bins=bins, histtype="step", label="Before PSD")
             ax.hist(
-                energy[classifier > cut],
+                df.query(f"is_valid_cal& is_not_pulser & AoE_classifier > {cut}")[cal_energy_param],
                 bins=bins,
                 histtype="step",
                 label="Low side PSD cut",
             )
             ax.hist(
-                energy[(classifier > cut) & (classifier < 4)],
+                df.query(f"is_valid_cal& is_not_pulser & AoE_classifier > {cut} & AoE_classifier < {aoe_high_cut}")[cal_energy_param],
                 bins=bins,
                 histtype="step",
                 label="Double sided PSD cut",
             )
             ax.hist(
-                energy[(classifier < cut) | (classifier > 4)],
+                df.query(f"is_valid_cal& is_not_pulser & (AoE_classifier < {cut} | AoE_classifier > {aoe_high_cut})")[cal_energy_param],
                 bins=bins,
                 histtype="step",
                 label="Rejected by PSD cut",
@@ -1483,15 +1677,17 @@ def cal_aoe(
 
             axins = ax.inset_axes([0.25, 0.07, 0.4, 0.3])
             bins = np.linspace(1580, 1640, 200)
-            axins.hist(energy, bins=bins, histtype="step")
-            axins.hist(energy[classifier > cut], bins=bins, histtype="step")
+            axins.hist(df.query(f"is_valid_cal& is_not_pulser")[cal_energy_param], 
+                        bins=bins, histtype="step")
+            axins.hist(df.query(f"is_valid_cal& is_not_pulser & AoE_classifier > {cut}")[cal_energy_param],
+                            bins=bins, histtype="step")
             axins.hist(
-                energy[(classifier > cut) & (classifier < aoe_high_cut)],
+                df.query(f"is_valid_cal& is_not_pulser & AoE_classifier > {cut} & AoE_classifier < {aoe_high_cut}")[cal_energy_param],
                 bins=bins,
                 histtype="step",
             )
             axins.hist(
-                energy[(classifier < cut) | (classifier > aoe_high_cut)],
+                df.query(f"is_valid_cal& is_not_pulser & (AoE_classifier < {cut} | AoE_classifier > {aoe_high_cut})")[cal_energy_param],
                 bins=bins,
                 histtype="step",
             )
@@ -1509,9 +1705,9 @@ def cal_aoe(
             fig6 = plt.figure()
             bins = np.linspace(1000, 3000, 1000)
             counts_pass, bins_pass, _ = pgh.get_hist(
-                energy[(classifier > cut) & (classifier < aoe_high_cut)], bins=bins
+                df.query(f"is_valid_cal& is_not_pulser & AoE_classifier > {cut} & AoE_classifier < {aoe_high_cut}")[cal_energy_param], bins=bins
             )
-            counts, bins, _ = pgh.get_hist(energy, bins=bins)
+            counts, bins, _ = pgh.get_hist(df.query(f"is_valid_cal& is_not_pulser")[cal_energy_param], bins=bins)
             survival_fracs = counts_pass / (counts)
 
             plt.step(pgh.get_bin_centers(bins_pass), survival_fracs)
@@ -1532,11 +1728,11 @@ def cal_aoe(
         log.error("survival fraction determination failed")
         out_dict = {
             "correction_fit_results": results_dict,
-            "A/E_Energy_param": "cuspEmax",
-            "Cal_energy_param": "cuspEmax_ctc",
+            "A/E_Energy_param": energy_param,
+            "Cal_energy_param": cal_energy_param,
             "dt_param": "dt_eff",
             "rt_correction": False,
-            "1000-1300keV_mean": bulk_pars[2],
+            "1000-1300keV_mean": res_dict,
             "Mean_pars": list(mu_pars),
             "Sigma_pars": list(sigma_pars),
             "Low_cut": cut,
