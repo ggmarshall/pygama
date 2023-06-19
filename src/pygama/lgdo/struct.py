@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from pygama.lgdo import LGDO
+from .lgdo import LGDO
 
 log = logging.getLogger(__name__)
 
@@ -44,17 +44,19 @@ class Struct(LGDO, dict):
         return "struct"
 
     def form_datatype(self) -> str:
-        return self.datatype_name() + "{" + ",".join(self.keys()) + "}"
+        return (
+            self.datatype_name() + "{" + ",".join([str(k) for k in self.keys()]) + "}"
+        )
 
     def update_datatype(self) -> None:
         self.attrs["datatype"] = self.form_datatype()
 
-    def add_field(self, name: str, obj: LGDO) -> None:
+    def add_field(self, name: str | int, obj: LGDO) -> None:
         """Add a field to the table."""
         self[name] = obj
         self.update_datatype()
 
-    def remove_field(self, name: str, delete: bool = False) -> None:
+    def remove_field(self, name: str | int, delete: bool = False) -> None:
         """Remove a field from the table.
 
         Parameters
@@ -85,10 +87,9 @@ class Struct(LGDO, dict):
                 string += f" '{k}': {v},\n"
         string += "}"
 
-        tmp_attrs = self.attrs.copy()
-        tmp_attrs.pop("datatype")
-        if tmp_attrs:
-            string += f" with attrs={tmp_attrs}"
+        attrs = self.getattrs()
+        if attrs:
+            string += f" with attrs={attrs}"
 
         np.set_printoptions(threshold=thr_orig)
 

@@ -13,11 +13,11 @@ import numpy as np
 import pandas as pd
 from pandas.io.formats import format as fmt
 
-from pygama.lgdo.array import Array
-from pygama.lgdo.arrayofequalsizedarrays import ArrayOfEqualSizedArrays
-from pygama.lgdo.lgdo import LGDO
-from pygama.lgdo.struct import Struct
-from pygama.lgdo.vectorofvectors import VectorOfVectors
+from .array import Array
+from .arrayofequalsizedarrays import ArrayOfEqualSizedArrays
+from .lgdo import LGDO
+from .struct import Struct
+from .vectorofvectors import VectorOfVectors
 
 log = logging.getLogger(__name__)
 
@@ -225,7 +225,7 @@ class Table(Struct):
                 if not hasattr(column, "nda"):
                     raise ValueError(f"column {col} does not have an nda")
                 else:
-                    df[prefix + col] = column.nda.tolist()
+                    df[prefix + str(col)] = column.nda.tolist()
 
         return df
 
@@ -337,14 +337,12 @@ class Table(Struct):
 
         string += "\n"
         for k, v in self.items():
-            tmp_attrs = v.attrs.copy()
-            tmp_attrs.pop("datatype")
-            if tmp_attrs:
-                string += f"\nwith attrs['{k}']={tmp_attrs}"
+            attrs = v.getattrs()
+            if attrs:
+                string += f"\nwith attrs['{k}']={attrs}"
 
-        tmp_attrs = self.attrs.copy()
-        tmp_attrs.pop("datatype")
-        if tmp_attrs:
-            string += f"\nwith attrs={tmp_attrs}"
+        attrs = self.getattrs()
+        if attrs:
+            string += f"\nwith attrs={attrs}"
 
         return string

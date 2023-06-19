@@ -946,8 +946,38 @@ class ProcessingChain:
                 "round() is not implemented for variables, only constants."
             )
 
+    # type cast variable
+    def _astype(var: ProcChainVar, dtype: str) -> ProcChainVar:  # noqa: N805
+        dtype = np.dtype(dtype)
+        if var is None:
+            return None
+        if not isinstance(var, ProcChainVar):
+            raise ProcessingChainError(f"cannot call astype() on {var}")
+        else:
+            name = f"{var.name}.astype(`{dtype.char}`)"
+            out = ProcChainVar(
+                var.proc_chain,
+                name,
+                var.shape,
+                dtype,
+                var.grid,
+                var.unit,
+                var.is_coord,
+            )
+            var.proc_chain._proc_managers.append(
+                ProcessorManager(
+                    var.proc_chain,
+                    np.copyto,
+                    [out, var],
+                    kw_params={"casting": "'unsafe'"},
+                    signature="(),(),()",
+                    types=f"{dtype.char}{var.dtype.char}",
+                )
+            )
+            return out
+
     # dict of functions that can be parsed by get_variable
-    func_list = {"len": _length, "round": _round}
+    func_list = {"len": _length, "round": _round, "astype": _astype}
     module_list = {"np": np, "numpy": np}
 
 
@@ -1018,7 +1048,7 @@ class ProcessorManager:
             raise ProcessingChainError(
                 f"expected {len(dims_list)} arguments from signature "
                 f"{self.signature}; found "
-                f"{len(params)}: ({', '.join([str(par) for par in params])})"
+                f"{len(params)+len(kw_params)}: ({', '.join([str(par) for par in params])})"
             )
 
         dims_dict = {}  # map from dim name -> DimInfo
@@ -1054,7 +1084,13 @@ class ProcessorManager:
             # check if arr_dims can be broadcast to match fun_dims
             for i in range(max(len(fun_dims), len(arr_dims))):
                 fd = fun_dims[-i - 1] if i < len(fun_dims) else None
-                ad = arr_dims[-i - 1] if i < len(arr_dims) else None
+                ad = (
+                    arr_dims[-i - 1]
+                    if i < len(arr_dims)
+                    else self.proc_chain._block_width
+                    if i == len(arr_dims)
+                    else None
+                )
 
                 if isinstance(fd, str):
                     if fd in dims_dict:
@@ -1062,7 +1098,7 @@ class ProcessorManager:
                         if not ad or this_dim.length != ad:
                             raise ProcessingChainError(
                                 f"failed to broadcast array dimensions for "
-                                f"{func.__name}. Could not find consistent value "
+                                f"{func.__name__}. Could not find consistent value "
                                 f"for dimension {fd}"
                             )
                         if not this_dim.grid:
@@ -1135,6 +1171,7 @@ class ProcessorManager:
         ):
             dim_list = outerdims.copy()
             for d in dims.split(","):
+                d = d.strip()
                 if not d:
                     continue
                 if d not in dims_dict:
@@ -1748,13 +1785,13 @@ def build_processing_chain(
         buf_in = lh5_in.get(input_par)
         if buf_in is None:
             log.warning(
-                f"I don't know what to do with {input_par}. Building output without it!"
+                f"I don't know what to do with '{input_par}'. Building output without it!"
             )
         try:
             proc_chain.link_input_buffer(input_par, buf_in)
         except Exception as e:
             raise ProcessingChainError(
-                f"Exception raised while linking input buffer {input_par}."
+                f"Exception raised while linking input buffer '{input_par}'."
             ) from e
 
     # now add the processors

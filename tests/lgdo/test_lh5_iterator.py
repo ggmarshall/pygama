@@ -72,3 +72,47 @@ def test_lgnd_waveform_table_fancy_idx(lgnd_file):
     lh5_obj, n_rows = lh5_it.read(0)
     assert isinstance(lh5_obj, lgdo.WaveformTable)
     assert len(lh5_obj) == 5
+
+
+@pytest.fixture(scope="module")
+def more_lgnd_files(lgnd_test_data):
+    return [
+        [
+            lgnd_test_data.get_path(
+                "lh5/prod-ref-l200/generated/tier/raw/cal/p03/r001/l200-p03-r001-cal-20230318T012144Z-tier_raw.lh5"
+            ),
+            lgnd_test_data.get_path(
+                "lh5/prod-ref-l200/generated/tier/raw/cal/p03/r001/l200-p03-r001-cal-20230318T012228Z-tier_raw.lh5"
+            ),
+        ],
+        [
+            lgnd_test_data.get_path(
+                "lh5/prod-ref-l200/generated/tier/hit/cal/p03/r001/l200-p03-r001-cal-20230318T012144Z-tier_hit.lh5"
+            ),
+            lgnd_test_data.get_path(
+                "lh5/prod-ref-l200/generated/tier/hit/cal/p03/r001/l200-p03-r001-cal-20230318T012228Z-tier_hit.lh5"
+            ),
+        ],
+    ]
+
+
+def test_friend(more_lgnd_files):
+    lh5_raw_it = LH5Iterator(
+        more_lgnd_files[0],
+        "ch1084803/raw",
+        field_mask=["waveform", "baseline"],
+        buffer_len=5,
+    )
+    lh5_it = LH5Iterator(
+        more_lgnd_files[1],
+        "ch1084803/hit",
+        field_mask=["is_valid_0vbb"],
+        buffer_len=5,
+        friend=lh5_raw_it,
+    )
+
+    lh5_obj, n_rows = lh5_it.read(0)
+
+    assert n_rows == 5
+    assert isinstance(lh5_obj, lgdo.Table)
+    assert set(lh5_obj.keys()) == {"waveform", "baseline", "is_valid_0vbb"}
