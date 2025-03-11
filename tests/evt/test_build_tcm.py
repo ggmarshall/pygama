@@ -54,8 +54,10 @@ def test_generate_tcm_cols(lgnd_test_data):
         [(f_raw, f"{chan}/raw") for chan in lh5.ls(f_raw)], "timestamp",buffer_len=1,
     )
 
-    assert isinstance(tcm_cols, VectorOfVectors)
-    for v in tcm_cols:
+    assert isinstance(tcm_cols, Table)
+    assert isinstance(tcm_cols.array_id, VectorOfVectors)
+    assert isinstance(tcm_cols.array_idx, VectorOfVectors)
+    for v in tcm_cols.values():
         assert np.issubdtype(v.flattened_data.nda.dtype, np.integer)
 
     # fmt: off
