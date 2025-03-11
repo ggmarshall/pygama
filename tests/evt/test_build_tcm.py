@@ -13,7 +13,7 @@ def test_generate_tcm_cols(lgnd_test_data):
         "lh5/prod-ref-l200/generated/tier/raw/cal/p03/r001/l200-p03-r001-cal-20230318T012144Z-tier_raw.lh5"
     )
 
-    tcm_cols = evt.generate_tcm_cols(
+    tcm_cols = evt.build_tcm(
         [(f_raw, f"{chan}/raw") for chan in lh5.ls(f_raw)], "timestamp"
     )
 
