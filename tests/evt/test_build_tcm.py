@@ -20,7 +20,7 @@ def test_generate_tcm_cols(lgnd_test_data):
     assert isinstance(tcm_cols, Table)
     assert isinstance(tcm_cols.array_id, VectorOfVectors)
     assert isinstance(tcm_cols.array_idx, VectorOfVectors)
-    for v in tcm_cols:
+    for v in tcm_cols.values():
         assert np.issubdtype(v.flattened_data.nda.dtype, np.integer)
 
     # fmt: off
