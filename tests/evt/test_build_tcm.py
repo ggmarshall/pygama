@@ -3,7 +3,7 @@ import os
 import lgdo
 import numpy as np
 from lgdo import lh5
-from lgdo.types import VectorOfVectors, Table
+from lgdo.types import Table, VectorOfVectors
 
 from pygama import evt
 
@@ -14,7 +14,9 @@ def test_generate_tcm_cols(lgnd_test_data):
     )
 
     tcm_cols = evt.build_tcm(
-        [(f_raw, f"{chan}/raw") for chan in lh5.ls(f_raw)], "timestamp",buffer_len=100,
+        [(f_raw, f"{chan}/raw") for chan in lh5.ls(f_raw)],
+        "timestamp",
+        buffer_len=100,
     )
 
     assert isinstance(tcm_cols, Table)
@@ -51,7 +53,9 @@ def test_generate_tcm_cols(lgnd_test_data):
     # fmt: on
     # test with small buffer len
     tcm_cols = evt.build_tcm(
-        [(f_raw, f"{chan}/raw") for chan in lh5.ls(f_raw)], "timestamp",buffer_len=1,
+        [(f_raw, f"{chan}/raw") for chan in lh5.ls(f_raw)],
+        "timestamp",
+        buffer_len=1,
     )
 
     assert isinstance(tcm_cols, Table)
@@ -59,7 +63,6 @@ def test_generate_tcm_cols(lgnd_test_data):
     assert isinstance(tcm_cols.array_idx, VectorOfVectors)
     for v in tcm_cols.values():
         assert np.issubdtype(v.flattened_data.nda.dtype, np.integer)
-
     # fmt: off
     assert np.array_equal(
         tcm_cols.array_id.cumulative_length.nda,
@@ -88,11 +91,11 @@ def test_generate_tcm_cols(lgnd_test_data):
     # fmt: on
 
 
-def test_build_tcm_write(lgnd_test_data, tmptestdir):
+def test_build_tcm_write(lgnd_test_data, tmpdir):
     f_raw = lgnd_test_data.get_path(
         "lh5/prod-ref-l200/generated/tier/raw/cal/p03/r001/l200-p03-r001-cal-20230318T012144Z-tier_raw.lh5"
     )
-    out_file = f"{tmptestdir}/pygama-test-tcm.lh5"
+    out_file = f"{tmpdir}/pygama-test-tcm.lh5"
     evt.build_tcm(
         [(f_raw, ["ch1084803/raw", "ch1084804/raw", "ch1121600/raw"])],
         "timestamp",

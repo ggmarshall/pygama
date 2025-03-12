@@ -92,8 +92,7 @@ def generate_tcm_cols(
 
     if array_ids is None:
         array_ids = np.arange(0, len(iterators))
-
-    while not at_end.any():
+    while not at_end.all():
         curr_mask = ~skip_mask & ~at_end
         dfs = []
         for _ii, it in enumerate(iterators[curr_mask]):
@@ -152,18 +151,19 @@ def generate_tcm_cols(
             write_mask = mask
             last_entry = None
         else:
-            last_instance = np.nanmin([int(last_instance[arr]) for arr in array_ids])
+            last_instance = int(np.min([last_instance[arr] for arr in array_ids]))
             last_entry = np.where(mask[last_instance:])[0]
             if len(last_entry) == 0:
                 last_entry = None
                 write_mask = mask
             else:
-                last_entry = last_instance + last_entry[0]
+                last_entry = last_instance + last_entry[0] + 1
                 write_mask = mask[:last_entry]
 
         # get cumulative_length
         cumulative_length = np.array(np.where(write_mask)[0]) + 1
-        cumulative_length = np.append(cumulative_length, len(write_mask) + 1)
+        if at_end.all():
+            cumulative_length = np.append(cumulative_length, len(write_mask) + 1)
 
         out_tbl = Table(size=len(cumulative_length))
         out_tbl.add_field(
@@ -189,7 +189,6 @@ def generate_tcm_cols(
                         flattened_data=tcm[f].to_numpy()[:last_entry],
                     ),
                 )
-
         if last_entry is None:
             tcm = None
         else:

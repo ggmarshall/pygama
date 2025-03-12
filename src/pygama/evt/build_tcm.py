@@ -162,4 +162,7 @@ def build_tcm(
                 tcm.append(tcm_gen.__next__())
             except StopIteration:
                 break
+        total_length = 0
+        for item in tcm:
+            total_length += len(item)
         return _concat_tables(tcm)
