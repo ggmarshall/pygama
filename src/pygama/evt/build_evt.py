@@ -333,8 +333,8 @@ def build_evt_cols(
             else:
                 lh5.write(
                     obj=nested_tbl,
-                    name=f.evt.group,
-                    lh5_file=f.evt.file,
+                    name=file_config.evt.group,
+                    lh5_file=file_config.evt.file,
                     wo_mode=wo_mode,
                 )
         else:
