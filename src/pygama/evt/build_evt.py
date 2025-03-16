@@ -207,7 +207,7 @@ def build_evt_cols(
         if Path(file_config.evt.file).exists():
             Path(file_config.evt.file).unlink()
 
-    for tcm_lh5, _, n_rows in lh5.LH5Iterator(
+    for tcm_lh5 in lh5.LH5Iterator(
         file_config.tcm.file,
         file_config.tcm.group,
         buffer_len=buffer_len,
@@ -220,7 +220,7 @@ def build_evt_cols(
         )
 
         # get number of events in file (ask the TCM)
-        table = Table(size=n_rows)
+        table = Table(size=len(tcm_lh5))
 
         # now loop over operations (columns in evt table)
         for field, v in config["operations"].items():
@@ -274,7 +274,7 @@ def build_evt_cols(
                     channels_skip=channels_skip,
                     mode=v["aggregation_mode"],
                     expr=v["expression"],
-                    n_rows=n_rows,
+                    n_rows=len(tcm_lh5),
                     table=table,
                     parameters=v.get("parameters", None),
                     query=v.get("query", None),
@@ -304,7 +304,7 @@ def build_evt_cols(
             table.add_field(field, obj)
 
         # might need to re-organize fields in subtables, create a new object for that
-        nested_tbl = Table(size=n_rows)
+        nested_tbl = Table(size=len(tcm_lh5))
         output_fields = config.get("outputs", table.keys())
 
         for field, obj in table.items():
@@ -327,7 +327,7 @@ def build_evt_cols(
 
                 # otherwise, increase nesting
                 if level not in lvl_ptr:
-                    lvl_ptr.add_field(level, Table(size=n_rows))
+                    lvl_ptr.add_field(level, Table(size=len(tcm_lh5)))
                 lvl_ptr = lvl_ptr[level]
 
         # write output fields into outfile
@@ -465,7 +465,7 @@ def evaluate_expression(
 
         # get module and function names
         func_call = expr.strip().split("(")[0]
-        subpackage, func = func_call.rsplit(".", 1)
+        subpackage, _ = func_call.rsplit(".", 1)
         package = subpackage.split(".")[0]
 
         # import function into current namespace

@@ -89,7 +89,7 @@ def generate_tcm_cols(
     tcm = None
     at_end = np.zeros(len(iterators), dtype=bool)
     skip_mask = np.zeros(len(iterators), dtype=bool)
-
+    buffer = None
     if array_ids is None:
         array_ids = np.arange(0, len(iterators))
     while not at_end.all():
@@ -98,7 +98,9 @@ def generate_tcm_cols(
         for _ii, it in enumerate(iterators[curr_mask]):
             ii = np.where(curr_mask)[0][_ii]
             try:
-                buffer, start, buf_len = it.__next__()
+                buffer = it.__next__()
+                buf_len = len(buffer)
+                start = it.current_i_entry
             except StopIteration:
                 at_end[ii] = True
                 continue
@@ -106,7 +108,7 @@ def generate_tcm_cols(
                 at_end[ii] = True
             array_id = array_ids[ii]
             array_id = np.full(buf_len, array_id, dtype=int)
-            buffer = buffer.view_as("pd")[:buf_len]
+            buffer = buffer.view_as("pd")
             buffer["array_id"] = array_id
             if array_idxs is not None:
                 buffer["array_idx"] = array_idxs.astype(int)[ii][

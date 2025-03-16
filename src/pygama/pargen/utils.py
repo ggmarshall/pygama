@@ -9,7 +9,6 @@ from iminuit import Minuit, cost
 from lgdo import lh5
 
 log = logging.getLogger(__name__)
-sto = lh5.LH5Store()
 
 
 def convert_to_minuit(pars, func):
@@ -79,7 +78,7 @@ def load_data(
         all_files = []
         masks = np.array([], dtype=bool)
         for tstamp, tfiles in files.items():
-            table = sto.read(lh5_path, tfiles)[0]
+            table = lh5.read(lh5_path, tfiles)
 
             file_df = pd.DataFrame(columns=params)
             if tstamp in cal_dict:
@@ -113,7 +112,7 @@ def load_data(
         keys = [key.split("/")[-1] for key in keys]
         params = get_params(keys + list(cal_dict.keys()), params)
 
-        table = sto.read(lh5_path, files)[0]
+        table = lh5.read(lh5_path, files)
         df = pd.DataFrame(columns=params)
         for outname, info in cal_dict.items():
             outcol = table.eval(info["expression"], info.get("parameters", None))
