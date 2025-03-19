@@ -14,38 +14,6 @@ import pygama.pargen.dsp_optimize as opt
 from pygama.pargen.data_cleaning import get_mode_stdev
 
 
-def one_exp(ts: np.array, tau2: float, f: float) -> np.array:
-    """
-    This function computes a decaying exponential. Used to subtract off the estimated long-time constant in :func:`linear_dpz_fit`
-
-    Parameters
-    ----------
-    ts
-        Array of time point values, in samples
-    tau2
-        A guess for the long time constant in HPGe waveforms
-    f
-        A guess for the fraction of the long time constant exponential present in an HPGe waveform
-    """
-    return f * np.exp(-ts / tau2)
-
-
-def line(ts: np.array, m: float, b: float) -> np.array:
-    """
-    Computes a line. Used to subtract off the estimated long-time constant in :func:`linear_dpz_fit`
-
-    Parameters
-    ----------
-    ts
-        Array of time point values, in samples
-    m
-        The slope
-    b
-        The y-intercept
-    """
-    return m * ts + b
-
-
 def dpz_model(
     ts: np.array, amp: float, tau1: float, tau2: float, f2: float
 ) -> np.array:
@@ -131,7 +99,7 @@ def linear_dpz_fit(
     if plot > 0:
         fig = plt.figure(figsize=(12, 8))
         plt.plot(ts[tau2_idx:], np.log(scaled_pulse[tau2_idx:]))
-        plt.plot(ts[tau2_idx:], line(ts[tau2_idx:], slope_2, intercept_2))
+        plt.plot(ts[tau2_idx:], slope_2 * ts[tau2_idx:] + intercept_2)
         plt.ylabel("ADC")
         plt.xlabel("Time [Samples]")
         plt.title("Long Time Constant Fitted")
@@ -143,7 +111,7 @@ def linear_dpz_fit(
             plt.close()
 
     # Subtract off the long time constant
-    sub_pulse = np.abs(scaled_pulse - one_exp(ts, -1 / slope_2, np.exp(intercept_2)))
+    sub_pulse = np.abs(scaled_pulse - np.exp(intercept_2) * np.exp(ts * slope_2))
 
     # Fit the short time constant
     slope_1, intercept_1, *_ = linregress(ts[:tau1_idx], np.log(sub_pulse[:tau1_idx]))
@@ -155,7 +123,7 @@ def linear_dpz_fit(
     if plot > 0:
         fig = plt.figure(figsize=(12, 8))
         plt.plot(ts[:tau1_idx], np.log(sub_pulse[:tau1_idx]))
-        plt.plot(ts[:tau1_idx], line(ts[:tau1_idx], slope_1, intercept_1))
+        plt.plot(ts[:tau1_idx], slope_1 * ts[:tau1_idx] + intercept_1)
         plt.ylabel("ADC")
         plt.xlabel("Time [Samples]")
         plt.title("Short Time Constant Fitted")
