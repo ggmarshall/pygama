@@ -302,7 +302,7 @@ class ExtractTau:
         self.debug_mode = debug_mode
 
     def get_single_decay_constant(
-        self, slopes: np.array, wfs: lgdo.WaveformTable, display=0
+        self, tb_data: lgdo.Table, slope_param="tail_slope", display=0
     ):
         """
         Finds the decay constant from the modal value of the tail slope after cuts
@@ -314,6 +314,9 @@ class ExtractTau:
         - wfs: WaveformTable object containing waveform data
 
         """
+        tb_out = opt.run_one_dsp(tb_data, self.dsp_config)
+        slopes = tb_out[slope_param].nda
+        wfs = tb_out[self.wf_field]
 
         mode, stdev = get_mode_stdev(slopes)
         tau = round(-1 / (mode), 1)
@@ -434,16 +437,26 @@ class ExtractTau:
         tau1 = np.nanmedian(dpz_opt_tb_out["tau1"].nda)
         tau2 = np.nanmedian(dpz_opt_tb_out["tau2"].nda)
         frac = np.nanmedian(dpz_opt_tb_out["frac"].nda)
+        tau1_err = np.nanstd(dpz_opt_tb_out["tau1"].nda)
+        tau2_err = np.nanstd(dpz_opt_tb_out["tau2"].nda)
+        frac_err = np.nanstd(dpz_opt_tb_out["frac"].nda)
 
         sampling_rate = tb_data[self.wf_field]["dt"].nda[0]
         units = tb_data[self.wf_field]["dt"].attrs["units"]
         tau1 = f"{tau1*sampling_rate}*{units}"
         tau2 = f"{tau2*sampling_rate}*{units}"
-
+        output_dict = {
+            "tau1": tau1,
+            "tau2": tau2,
+            "frac": frac,
+            "tau1_err": tau1_err,
+            "tau2_err": tau2_err,
+            "frac_err": frac_err,
+        }
         if "dpz" in self.output_dict:
-            self.output_dict["dpz"].update({"tau1": tau1, "tau2": tau2, "frac": frac})
+            self.output_dict["dpz"].update(output_dict)
         else:
-            self.output_dict["dpz"] = {"tau1": tau1, "tau2": tau2, "frac": frac}
+            self.output_dict["dpz"] = output_dict
 
         if display <= 0:
             return
@@ -478,7 +491,15 @@ class ExtractTau:
             plt.close()
         return plot_dict
 
-    def plot_slopes(self, slopes, display=0):
+    def plot_slopes(self, tb_data, slope_field, with_correction=False, display=0):
+
+        tb_out = opt.run_one_dsp(
+            tb_data,
+            self.dsp_config,
+            db_dict=self.output_dict if with_correction else {},
+        )
+        slopes = tb_out[slope_field].nda
+
         high_bin = self.results_dict["single_decay_constant"]["slope_pars"]["mode"]
         sigma = self.results_dict["single_decay_constant"]["slope_pars"]["stdev"]
         plt.rcParams["figure.figsize"] = (10, 6)
@@ -504,7 +525,10 @@ class ExtractTau:
         axins.axvline(high_bin, color="red")
         axins.set_xlim(in_min, in_max)
         ax.set_xlim(np.nanpercentile(slopes, 1), np.nanpercentile(slopes, 99))
-        out_plot_dict = {"slope": fig}
+        if with_correction:
+            out_plot_dict = {"corrected_slope": fig}
+        else:
+            out_plot_dict = {"slope": fig}
         if display > 1:
             plt.show()
         else:
