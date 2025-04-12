@@ -454,9 +454,18 @@ class PZCorrect:
         tau1 = np.nanmedian(dpz_opt_tb_out["tau1"].nda)
         tau2 = np.nanmedian(dpz_opt_tb_out["tau2"].nda)
         frac = np.nanmedian(dpz_opt_tb_out["frac"].nda)
-        tau1_err = (np.nanpercentile(dpz_opt_tb_out["tau1"].nda, 68.27) - np.nanpercentile(dpz_opt_tb_out["tau1"].nda, 31.73)) /2
-        tau2_err = (np.nanpercentile(dpz_opt_tb_out["tau2"].nda, 68.27) - np.nanpercentile(dpz_opt_tb_out["tau2"].nda, 31.73)) /2
-        frac_err = (np.nanpercentile(dpz_opt_tb_out["frac"].nda, 68.27) - np.nanpercentile(dpz_opt_tb_out["frac"].nda, 31.73)) /2
+        tau1_err = (
+            np.nanpercentile(dpz_opt_tb_out["tau1"].nda, 68.27)
+            - np.nanpercentile(dpz_opt_tb_out["tau1"].nda, 31.73)
+        ) / 2
+        tau2_err = (
+            np.nanpercentile(dpz_opt_tb_out["tau2"].nda, 68.27)
+            - np.nanpercentile(dpz_opt_tb_out["tau2"].nda, 31.73)
+        ) / 2
+        frac_err = (
+            np.nanpercentile(dpz_opt_tb_out["frac"].nda, 68.27)
+            - np.nanpercentile(dpz_opt_tb_out["frac"].nda, 31.73)
+        ) / 2
 
         if "units" in dpz_opt_tb_out["tau1"].attrs and dpz_opt_tb_out["tau1"].attrs[
             "units"
