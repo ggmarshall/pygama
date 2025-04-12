@@ -4,6 +4,8 @@ This module is for extracting the pole zero constants from the decay tail
 
 from __future__ import annotations
 
+import logging
+
 import lgdo
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +14,8 @@ from scipy.stats import linregress
 
 import pygama.pargen.dsp_optimize as opt
 from pygama.pargen.data_cleaning import get_mode_stdev
+
+log = logging.getLogger(__name__)
 
 
 def dpz_model(
@@ -246,7 +250,11 @@ def dpz_model_fit(
     else:
         plt.close()
 
-    return m.values[1], m.values[2], m.values[3], out_plot_dict
+    # order so tau1 largest
+    if m.values[1] > m.values[2]:
+        return m.values[1], m.values[2], m.values[3], out_plot_dict
+    else:
+        return m.values[2], m.values[1], 1 - m.values[3], out_plot_dict
 
 
 def tp100_align(wfs: np.array, tp100_window_width: int, tp100s: np.array) -> np.array:
@@ -293,7 +301,7 @@ def tp100_align(wfs: np.array, tp100_window_width: int, tp100s: np.array) -> np.
     return time_aligned_wfs
 
 
-class ExtractTau:
+class PZCorrect:
     def __init__(self, dsp_config, wf_field, debug_mode=False):
         self.dsp_config = dsp_config
         self.wf_field = wf_field
@@ -316,7 +324,7 @@ class ExtractTau:
         """
         tb_out = opt.run_one_dsp(tb_data, self.dsp_config)
         slopes = tb_out[slope_param].nda
-        wfs = tb_out[self.wf_field]
+        wfs = tb_data[self.wf_field]
 
         mode, stdev = get_mode_stdev(slopes)
         tau = round(-1 / (mode), 1)
@@ -394,6 +402,8 @@ class ExtractTau:
         """
 
         # Get high energy waveforms to create a superpulse. Eventually allow user which peak to select? For now, use the 2615 keV peak
+        sampling_rate = tb_data[self.wf_field]["dt"].nda[0]
+        units = tb_data[self.wf_field]["dt"].attrs["units"]
 
         high_e_wfs = tb_data[self.wf_field]["values"].nda[:]
 
@@ -423,6 +433,13 @@ class ExtractTau:
             idx_shift=offset_from_wf_max,
             plot=display,
         )
+        log.debug("Found initial guesses for DPZ constants:")
+        for item, value in {
+            "tau1": f"{tau1s_fit * sampling_rate}*{units}",
+            "tau2": f"{tau2s_fit * sampling_rate}*{units}",
+            "frac": f2s_fit,
+        }.items():
+            log.debug(f"{item}: {value}")
 
         # Optimize the flatness of high energy waveforms to get optimal DPZ constants
         dpz_opt_tb_out = opt.run_one_dsp(
@@ -437,14 +454,28 @@ class ExtractTau:
         tau1 = np.nanmedian(dpz_opt_tb_out["tau1"].nda)
         tau2 = np.nanmedian(dpz_opt_tb_out["tau2"].nda)
         frac = np.nanmedian(dpz_opt_tb_out["frac"].nda)
-        tau1_err = np.nanstd(dpz_opt_tb_out["tau1"].nda)
-        tau2_err = np.nanstd(dpz_opt_tb_out["tau2"].nda)
-        frac_err = np.nanstd(dpz_opt_tb_out["frac"].nda)
+        tau1_err = (np.nanpercentile(dpz_opt_tb_out["tau1"].nda, 68.27) - np.nanpercentile(dpz_opt_tb_out["tau1"].nda, 31.73)) /2
+        tau2_err = (np.nanpercentile(dpz_opt_tb_out["tau2"].nda, 68.27) - np.nanpercentile(dpz_opt_tb_out["tau2"].nda, 31.73)) /2
+        frac_err = (np.nanpercentile(dpz_opt_tb_out["frac"].nda, 68.27) - np.nanpercentile(dpz_opt_tb_out["frac"].nda, 31.73)) /2
 
-        sampling_rate = tb_data[self.wf_field]["dt"].nda[0]
-        units = tb_data[self.wf_field]["dt"].attrs["units"]
-        tau1 = f"{tau1*sampling_rate}*{units}"
-        tau2 = f"{tau2*sampling_rate}*{units}"
+        if "units" in dpz_opt_tb_out["tau1"].attrs and dpz_opt_tb_out["tau1"].attrs[
+            "units"
+        ] not in ["ADC", "sample"]:
+            tau1 = f'{tau1}*{dpz_opt_tb_out["tau1"].attrs["units"]}'
+            tau1_err = f'{tau1_err}*{dpz_opt_tb_out["tau1"].attrs["units"]}'
+        else:
+            tau1 = f"{tau1*sampling_rate}*{units}"
+            tau1_err = f"{tau1_err*sampling_rate}*{units}"
+
+        if "units" in dpz_opt_tb_out["tau2"].attrs and dpz_opt_tb_out["tau2"].attrs[
+            "units"
+        ] not in ["ADC", "sample"]:
+            tau2 = f'{tau2}*{dpz_opt_tb_out["tau2"].attrs["units"]}'
+            tau2_err = f'{tau2_err}*{dpz_opt_tb_out["tau2"].attrs["units"]}'
+        else:
+            tau2 = f"{tau2*sampling_rate}*{units}"
+            tau2_err = f"{tau2_err*sampling_rate}*{units}"
+
         output_dict = {
             "tau1": tau1,
             "tau2": tau2,
@@ -500,8 +531,6 @@ class ExtractTau:
         )
         slopes = tb_out[slope_field].nda
 
-        high_bin = self.results_dict["single_decay_constant"]["slope_pars"]["mode"]
-        sigma = self.results_dict["single_decay_constant"]["slope_pars"]["stdev"]
         plt.rcParams["figure.figsize"] = (10, 6)
         plt.rcParams["font.size"] = 8
         fig, ax = plt.subplots()
@@ -511,20 +540,23 @@ class ExtractTau:
             np.nanpercentile(slopes, 51) - np.nanpercentile(slopes, 50),
         )
         counts, bins, bars = ax.hist(slopes, bins=bins, histtype="step")
-        ax.axvline(high_bin, color="red")
-        in_min = high_bin - 4 * sigma
-        in_max = high_bin + 4 * sigma
         plt.xlabel("Slope")
         plt.ylabel("Counts")
-        axins = ax.inset_axes([0.6, 0.6, 0.4, 0.4])
-        axins.hist(
-            slopes[(slopes > in_min) & (slopes < in_max)],
-            bins=50,
-            histtype="step",
-        )
-        axins.axvline(high_bin, color="red")
-        axins.set_xlim(in_min, in_max)
-        ax.set_xlim(np.nanpercentile(slopes, 1), np.nanpercentile(slopes, 99))
+        if "single_decay_constant" in self.results_dict:
+            high_bin = self.results_dict["single_decay_constant"]["slope_pars"]["mode"]
+            sigma = self.results_dict["single_decay_constant"]["slope_pars"]["stdev"]
+            ax.axvline(high_bin, color="red")
+            in_min = high_bin - 4 * sigma
+            in_max = high_bin + 4 * sigma
+            axins = ax.inset_axes([0.6, 0.6, 0.4, 0.4])
+            axins.hist(
+                slopes[(slopes > in_min) & (slopes < in_max)],
+                bins=50,
+                histtype="step",
+            )
+            axins.axvline(high_bin, color="red")
+            axins.set_xlim(in_min, in_max)
+            ax.set_xlim(np.nanpercentile(slopes, 1), np.nanpercentile(slopes, 99))
         if with_correction:
             out_plot_dict = {"corrected_slope": fig}
         else:
