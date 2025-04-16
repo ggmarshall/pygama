@@ -336,9 +336,9 @@ class PZCorrect:
         err = f"{err*sampling_rate}*{units}"
 
         if "pz" in self.output_dict:
-            self.output_dict["pz"].update({"tau": tau, "tau_err": err})
+            self.output_dict["pz"].update({"tau1": tau, "tau1_err": err})
         else:
-            self.output_dict["pz"] = {"tau": tau, "tau_err": err}
+            self.output_dict["pz"] = {"tau1": tau, "tau1_err": err}
 
         self.results_dict.update(
             {"single_decay_constant": {"slope_pars": {"mode": mode, "stdev": stdev}}}
