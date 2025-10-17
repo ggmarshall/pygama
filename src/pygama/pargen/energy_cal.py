@@ -2685,7 +2685,10 @@ def hpge_fit_energy_cal_func(
         m.simplex()
         m.migrad()
         m.hesse()
-    return m.values, m.errors, m.covariance
+        pars = m.values
+        cov = m.covariance
+        errs = m.errors
+    return pars, errs, cov
 
 
 def poly_match(xx, yy, deg=-1, rtol=1e-5, atol=1e-8, fixed=None):
